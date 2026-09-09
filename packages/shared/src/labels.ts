@@ -59,3 +59,26 @@ export const ERROR_CODE_LABELS: Record<ErrorCode, string> = {
   NETWORK_ERROR: "Network error",
   UNKNOWN_ERROR: "Unknown error",
 };
+
+export const INCIDENT_STATUS_LABELS = {
+  OPEN: "Investigating",
+  ACKNOWLEDGED: "Acknowledged",
+  RESOLVED: "Resolved",
+} as const;
+
+export const INCIDENT_SEVERITY_LABELS = {
+  WARNING: "Warning",
+  CRITICAL: "Critical",
+} as const;
+
+export const DEAD_LETTER_STATUS_LABELS = {
+  PENDING: "Awaiting replay",
+  REPLAYED: "Replayed",
+  DISCARDED: "Discarded",
+} as const;
+
+export const DEAD_LETTER_REASON_LABELS = {
+  RETRIES_EXHAUSTED: "Retries exhausted",
+  NON_RETRYABLE_ERROR: "Non-retryable error",
+  PROCESSING_FAILURE: "Message could not be processed",
+} as const;
