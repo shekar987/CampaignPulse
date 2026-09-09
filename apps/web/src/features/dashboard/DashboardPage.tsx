@@ -1,5 +1,5 @@
 import type { HealthStatus } from "@campaignpulse/event-contracts";
-import { CHANNEL_LABELS } from "@campaignpulse/shared";
+import { CHANNEL_LABELS, HEALTH_LABELS } from "@campaignpulse/shared";
 import { Link } from "react-router";
 
 import { describeError } from "../../api/client";
@@ -87,25 +87,27 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
         </Card>
 
         <Card title="Campaign health" description={`${formatInteger(totalCampaigns)} campaigns`}>
-          <dl className="grid grid-cols-2 gap-3">
+          <ul className="grid grid-cols-2 gap-3" aria-label="Campaigns by health">
             {(["critical", "degraded", "healthy", "unknown"] as const).map((key) => {
               const status = key.toUpperCase() as HealthStatus;
               return (
-                <Link
-                  key={key}
-                  to={`/campaigns?health=${status}`}
-                  className="rounded-md border border-line-subtle bg-surface-canvas p-3 hover:bg-surface-sunken"
-                >
-                  <dt className="flex items-center gap-1.5 text-xs font-medium text-fg-secondary">
-                    <HealthBadge status={status} size="sm" />
-                  </dt>
-                  <dd className="mt-2 text-2xl font-semibold tabular-nums text-fg-primary">
-                    {formatInteger(totals[key])}
-                  </dd>
-                </Link>
+                <li key={key}>
+                  <Link
+                    to={`/campaigns?health=${status}`}
+                    className="block rounded-md border border-line-subtle bg-surface-canvas p-3 hover:bg-surface-sunken"
+                    aria-label={`${formatInteger(totals[key])} ${HEALTH_LABELS[status].toLowerCase()} campaigns`}
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-fg-secondary">
+                      <HealthBadge status={status} size="sm" />
+                    </span>
+                    <span className="mt-2 block text-2xl font-semibold tabular-nums text-fg-primary">
+                      {formatInteger(totals[key])}
+                    </span>
+                  </Link>
+                </li>
               );
             })}
-          </dl>
+          </ul>
         </Card>
       </div>
 
