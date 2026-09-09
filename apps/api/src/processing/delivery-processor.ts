@@ -82,6 +82,11 @@ interface TransactionOutcome {
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** Returns `candidate` if it is later than `reference`, otherwise one millisecond after it. */
+function strictlyAfter(candidate: Date, reference: Date): Date {
+  return candidate.getTime() > reference.getTime() ? candidate : new Date(reference.getTime() + 1);
+}
+
 /**
  * Consumes delivery request events and performs the (simulated) delivery attempt.
  *
@@ -296,13 +301,14 @@ export class DeliveryProcessor {
       ...(params.replayOf ? { replayOf: params.replayOf } : {}),
     };
 
+    const startedAt = this.clock();
     await tx.deliveryEvent.create({
       data: toEventRow(
         createEvent({
           ...base,
           eventType: "DELIVERY_STARTED",
           status: "PROCESSING",
-          occurredAt: this.clock(),
+          occurredAt: startedAt,
           metadata: runMetadata,
         }),
       ),
@@ -311,7 +317,10 @@ export class DeliveryProcessor {
     // 4. Perform the simulated channel call.
     const outcome = simulateAttempt(params, event.channel, event.correlationId, attempt);
     await this.sleep(Math.round(outcome.latencyMs * this.latencyScale));
-    const finishedAt = this.clock();
+    // Timeline order must be unambiguous even when the clock has not ticked: the outcome
+    // strictly follows the start, and a retry request or final failure strictly follows it.
+    const finishedAt = strictlyAfter(this.clock(), startedAt);
+    const followUpAt = strictlyAfter(finishedAt, finishedAt);
 
     if (outcome.kind === "success") {
       await tx.deliveryEvent.create({
@@ -370,7 +379,7 @@ export class DeliveryProcessor {
         attempt: decision.nextAttempt,
         eventType: "DELIVERY_RETRY_REQUESTED",
         status: "RETRYING",
-        occurredAt: finishedAt,
+        occurredAt: followUpAt,
         metadata: {
           ...runMetadata,
           simulation: params,
@@ -395,7 +404,7 @@ export class DeliveryProcessor {
           ...base,
           eventType: "DELIVERY_FINAL_FAILURE",
           status: "FINAL_FAILURE",
-          occurredAt: finishedAt,
+          occurredAt: followUpAt,
           metadata: { ...runMetadata, reason: decision.reason, attempts: attempt },
           error,
         }),
