@@ -1,0 +1,213 @@
+"""
+ISO-8601 timestamp with timezone, e.g. 2026-09-08T10:32:05.000Z
+"""
+scalar DateTime
+
+"""
+Arbitrary JSON value, used for free-form event metadata.
+"""
+scalar JSON
+
+enum Channel {
+  WEB
+  MOBILE_APP
+  IN_STORE_DISPLAY
+  SMARTSHOP
+}
+
+enum HealthStatus {
+  HEALTHY
+  DEGRADED
+  CRITICAL
+  UNKNOWN
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum EventType {
+  CAMPAIGN_DELIVERY_REQUESTED
+  DELIVERY_STARTED
+  DELIVERY_SUCCEEDED
+  DELIVERY_FAILED
+  DELIVERY_RETRY_REQUESTED
+  DELIVERY_RETRY_SUCCEEDED
+  DELIVERY_FINAL_FAILURE
+  INCIDENT_CREATED
+  INCIDENT_ACKNOWLEDGED
+  INCIDENT_RESOLVED
+}
+
+enum EventStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  RETRYING
+  FINAL_FAILURE
+}
+
+enum ErrorCode {
+  TIMEOUT
+  RATE_LIMITED
+  VALIDATION_ERROR
+  DEPENDENCY_UNAVAILABLE
+  AUTHORIZATION_ERROR
+  NETWORK_ERROR
+  UNKNOWN_ERROR
+}
+
+enum CampaignSort {
+  NEWEST
+  OLDEST
+  NAME
+}
+
+"""
+Delivery outcome metrics for a scope (system, campaign or channel). Rates are fractions
+between 0 and 1 and are null when there are no events to measure, never 0.
+"""
+type DeliveryMetrics {
+  totalEvents: Int!
+  successfulEvents: Int!
+  failedEvents: Int!
+  successRate: Float
+  errorRate: Float
+  avgLatencyMs: Float
+}
+
+type CampaignChannel {
+  id: ID!
+  channel: Channel!
+  healthStatus: HealthStatus!
+  metrics: DeliveryMetrics!
+}
+
+type Campaign {
+  id: ID!
+  name: String!
+  advertiserName: String!
+  status: CampaignStatus!
+  healthStatus: HealthStatus!
+  channels: [CampaignChannel!]!
+  metrics: DeliveryMetrics!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type CampaignPage {
+  items: [Campaign!]!
+  totalCount: Int!
+  page: Int!
+  pageSize: Int!
+  totalPages: Int!
+}
+
+type CampaignHealth {
+  campaignId: ID!
+  overall: HealthStatus!
+  channels: [CampaignChannel!]!
+}
+
+type DeliveryError {
+  code: ErrorCode!
+  message: String!
+}
+
+type DeliveryEvent {
+  id: ID!
+  campaignId: ID!
+  correlationId: String!
+  eventType: EventType!
+  channel: Channel!
+  status: EventStatus!
+  attempt: Int!
+  occurredAt: DateTime!
+  latencyMs: Int
+  metadata: JSON
+  error: DeliveryError
+}
+
+type DeliveryEventPage {
+  items: [DeliveryEvent!]!
+  totalCount: Int!
+  page: Int!
+  pageSize: Int!
+  totalPages: Int!
+}
+
+type ChannelHealth {
+  channel: Channel!
+  healthStatus: HealthStatus!
+  metrics: DeliveryMetrics!
+}
+
+type HealthCounts {
+  healthy: Int!
+  degraded: Int!
+  critical: Int!
+  unknown: Int!
+}
+
+type SystemHealth {
+  """
+  Size of the rolling window (in hours) the channel and delivery figures are measured over.
+  """
+  windowHours: Int!
+  generatedAt: DateTime!
+  channels: [ChannelHealth!]!
+  campaigns: HealthCounts!
+  delivery: DeliveryMetrics!
+  """
+  Campaigns that are currently degraded or critical, most severe first.
+  """
+  attention: [Campaign!]!
+}
+
+type ServiceStatus {
+  name: String!
+  version: String!
+  environment: String!
+  uptimeSeconds: Int!
+  timestamp: DateTime!
+}
+
+input CampaignFilter {
+  search: String
+  healthStatus: HealthStatus
+  channel: Channel
+}
+
+input CreateCampaignInput {
+  name: String!
+  advertiserName: String!
+  channels: [Channel!]!
+}
+
+type Query {
+  status: ServiceStatus!
+  systemHealth: SystemHealth!
+  campaigns(
+    filter: CampaignFilter
+    sort: CampaignSort = NEWEST
+    page: Int = 1
+    pageSize: Int = 9
+  ): CampaignPage!
+  campaign(id: ID!): Campaign
+  campaignHealth(id: ID!): CampaignHealth
+  deliveryEvents(
+    campaignId: ID!
+    channel: Channel
+    correlationId: String
+    page: Int = 1
+    pageSize: Int = 25
+  ): DeliveryEventPage!
+}
+
+type Mutation {
+  createCampaign(input: CreateCampaignInput!): Campaign!
+}
