@@ -82,6 +82,24 @@ CloudWatch stay inside or very close to the free tier. The `db.t4g.micro` RDS in
 free-tier eligible for the first 12 months of an account and roughly $12/month otherwise. Tear
 down when you are not demonstrating.
 
+## Alternative: deploy from AWS CloudShell, no key at all
+
+CloudShell (the terminal icon in the console's top bar) runs with your console login's own
+permissions, so nothing needs to be created or stored. Upload the repository as a zip (CloudShell
+**Actions → Upload file**; produce the zip with `git archive --format=zip -o CampaignPulse.zip HEAD`
+or download it from GitHub), then:
+
+```bash
+unzip -q CampaignPulse.zip -d campaignpulse && cd campaignpulse
+export SERVERLESS_ACCESS_KEY=...      # from app.serverless.com, or run: npx serverless login
+bash infrastructure/cloudshell-deploy.sh
+```
+
+The script installs Node.js and Terraform into your CloudShell home, creates the Terraform state
+bucket, and runs the same steps as the workflow. It prints the web app and API URLs at the end.
+Tear down with `bash infrastructure/cloudshell-destroy.sh`. Set `ALERT_EMAIL=you@example.com`
+before running to subscribe to incident notifications.
+
 ## If you would rather deploy from your own machine
 
 Install the AWS CLI and run `aws configure` with a key from your own IAM user, then follow the
