@@ -1,0 +1,14 @@
+{
+  "name": "@campaignpulse/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/tokens.ts",
+    "./theme.css": "./theme.css"
+  },
+  "scripts": {
+    "build": "tsx src/build-theme.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

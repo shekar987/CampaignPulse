@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Generated code (recreated by `npm run codegen`)
+apps/api/src/generated/
+apps/api/src/graphql/generated/
+apps/web/src/gql/
+
+# Environment files (copy .env.example to .env)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+playwright-report/
+test-results/
