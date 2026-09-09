@@ -8,10 +8,11 @@ import { Card } from "../../components/ui/Card";
 import { Icon } from "../../components/ui/Icon";
 import { MetricCard } from "../../components/ui/MetricCard";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { RateBar } from "../../components/ui/RateBar";
 import { HealthBadge } from "../../components/ui/StatusBadge";
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from "../../components/ui/States";
 import { formatInteger, formatLatency, formatPercent, formatRelative } from "../../lib/format";
-import { HEALTH_TONES } from "../../lib/health";
+import { HEALTH_ICONS, HEALTH_TONES, rateTone } from "../../lib/health";
 
 export function DashboardPage() {
   const { data, isPending, isError, error, refetch, isFetching } = useSystemHealth();
@@ -30,10 +31,10 @@ export function DashboardPage() {
             <Skeleton className="h-64" />
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
           </div>
         </LoadingRegion>
       ) : isError ? (
@@ -49,6 +50,20 @@ export function DashboardPage() {
     </>
   );
 }
+
+const TILE_CLASSES: Record<HealthStatus, string> = {
+  HEALTHY: "border-status-success-border bg-status-success-bg text-status-success-fg",
+  DEGRADED: "border-status-warning-border bg-status-warning-bg text-status-warning-fg",
+  CRITICAL: "border-status-error-border bg-status-error-bg text-status-error-fg",
+  UNKNOWN: "border-status-neutral-border bg-status-neutral-bg text-status-neutral-fg",
+};
+
+const ATTENTION_ACCENT: Record<HealthStatus, string> = {
+  HEALTHY: "border-l-status-success-solid",
+  DEGRADED: "border-l-status-warning-solid",
+  CRITICAL: "border-l-status-error-solid",
+  UNKNOWN: "border-l-status-neutral-solid",
+};
 
 function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
   const window = `Last ${snapshot.windowHours} hours`;
@@ -67,11 +82,23 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
             {snapshot.channels.map((channel) => (
               <li
                 key={channel.channel}
-                className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-[minmax(0,1.4fr)_auto_repeat(3,minmax(0,1fr))] sm:px-5"
+                className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-surface-canvas sm:grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1.4fr)_repeat(2,minmax(0,0.8fr))] sm:px-5"
               >
-                <p className="font-medium text-fg-primary">{CHANNEL_LABELS[channel.channel]}</p>
+                <p className="font-semibold text-fg-primary">{CHANNEL_LABELS[channel.channel]}</p>
                 <HealthBadge status={channel.healthStatus} size="sm" />
-                <Stat label="Success rate" value={formatPercent(channel.metrics.successRate)} />
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="text-xs text-fg-muted">Success rate</span>
+                    <span className="font-semibold tabular-nums text-fg-primary">
+                      {formatPercent(channel.metrics.successRate) ?? "No data"}
+                    </span>
+                  </div>
+                  <RateBar
+                    value={channel.metrics.successRate}
+                    tone={rateTone(channel.metrics.errorRate)}
+                    className="mt-1.5"
+                  />
+                </div>
                 <Stat
                   label="Attempts"
                   value={
@@ -94,13 +121,14 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
                 <li key={key}>
                   <Link
                     to={`/campaigns?health=${status}`}
-                    className="block rounded-md border border-line-subtle bg-surface-canvas p-3 hover:bg-surface-sunken"
+                    className={`block rounded-lg border p-3 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md ${TILE_CLASSES[status]}`}
                     aria-label={`${formatInteger(totals[key])} ${HEALTH_LABELS[status].toLowerCase()} campaigns`}
                   >
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-fg-secondary">
-                      <HealthBadge status={status} size="sm" />
+                    <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                      <Icon name={HEALTH_ICONS[status]} size={14} />
+                      {HEALTH_LABELS[status]}
                     </span>
-                    <span className="mt-2 block text-2xl font-semibold tabular-nums text-fg-primary">
+                    <span className="mt-2 block text-3xl font-semibold tabular-nums">
                       {formatInteger(totals[key])}
                     </span>
                   </Link>
@@ -118,6 +146,8 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Delivery attempts"
+            icon="send"
+            tone="info"
             value={
               snapshot.delivery.totalEvents > 0
                 ? formatInteger(snapshot.delivery.totalEvents)
@@ -126,11 +156,14 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
           />
           <MetricCard
             label="Success rate"
+            icon="trending-up"
             value={formatPercent(snapshot.delivery.successRate)}
             tone={rateTone(snapshot.delivery.errorRate)}
+            bar={snapshot.delivery.successRate}
           />
           <MetricCard
             label="Failed attempts"
+            icon="alert-circle"
             value={
               snapshot.delivery.totalEvents > 0
                 ? formatInteger(snapshot.delivery.failedEvents)
@@ -143,7 +176,11 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
             }
             tone={snapshot.delivery.failedEvents > 0 ? "error" : "neutral"}
           />
-          <MetricCard label="Avg latency" value={formatLatency(snapshot.delivery.avgLatencyMs)} />
+          <MetricCard
+            label="Avg latency"
+            icon="zap"
+            value={formatLatency(snapshot.delivery.avgLatencyMs)}
+          />
         </div>
       </section>
 
@@ -152,17 +189,25 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
           Operations
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Link to="/incidents?status=OPEN" className="block rounded-lg hover:shadow-md">
+          <Link
+            to="/incidents?status=OPEN"
+            className="block rounded-lg transition-transform hover:-translate-y-0.5"
+          >
             <MetricCard
               label="Open incidents"
+              icon="siren"
               value={formatInteger(snapshot.openIncidents)}
               hint="Investigating or acknowledged. Select to triage."
               tone={snapshot.openIncidents > 0 ? "error" : "success"}
             />
           </Link>
-          <Link to="/dead-letters" className="block rounded-lg hover:shadow-md">
+          <Link
+            to="/dead-letters"
+            className="block rounded-lg transition-transform hover:-translate-y-0.5"
+          >
             <MetricCard
               label="Dead-letter queue"
+              icon="archive"
               value={formatInteger(snapshot.deadLetterCount)}
               hint="Deliveries awaiting replay after exhausting their retries."
               tone={snapshot.deadLetterCount > 0 ? "warning" : "success"}
@@ -194,12 +239,15 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
                 <li key={campaign.id}>
                   <Link
                     to={`/campaigns/${campaign.id}`}
-                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 hover:bg-surface-sunken sm:px-5"
+                    className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 px-4 py-3 transition-colors hover:bg-surface-canvas sm:px-5 ${ATTENTION_ACCENT[campaign.healthStatus]}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-fg-primary">{campaign.name}</p>
+                      <p className="truncate font-semibold text-fg-primary">{campaign.name}</p>
                       <p className="truncate text-sm text-fg-secondary">
                         {campaign.advertiserName}
+                        {campaign.openIncidentCount > 0
+                          ? ` · ${campaign.openIncidentCount} open ${campaign.openIncidentCount === 1 ? "incident" : "incidents"}`
+                          : ""}
                       </p>
                     </div>
                     <HealthBadge status={campaign.healthStatus} size="sm" />
@@ -210,7 +258,7 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
                         </span>{" "}
                         at{" "}
                         <span
-                          className={`font-medium text-status-${HEALTH_TONES[worst.healthStatus]}-fg tabular-nums`}
+                          className={`font-semibold text-status-${HEALTH_TONES[worst.healthStatus]}-fg tabular-nums`}
                         >
                           {formatPercent(worst.metrics.errorRate) ?? "no data"}
                         </span>{" "}
@@ -233,20 +281,7 @@ function Stat({ label, value }: { label: string; value: string | null }) {
   return (
     <p className="text-sm">
       <span className="block text-xs text-fg-muted">{label}</span>
-      <span className="font-medium tabular-nums text-fg-primary">{value ?? "No data"}</span>
+      <span className="font-semibold tabular-nums text-fg-primary">{value ?? "No data"}</span>
     </p>
   );
-}
-
-function rateTone(errorRate: number | null | undefined) {
-  if (errorRate === null || errorRate === undefined) {
-    return "neutral" as const;
-  }
-  if (errorRate >= 0.1) {
-    return "error" as const;
-  }
-  if (errorRate >= 0.02) {
-    return "warning" as const;
-  }
-  return "success" as const;
 }
