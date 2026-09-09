@@ -50,3 +50,17 @@ export const DEAD_LETTER_STATUS_TONES = {
   REPLAYED: "info",
   DISCARDED: "neutral",
 } as const satisfies Record<string, Tone>;
+
+/** Tone for a success or error rate, mirroring the health thresholds. */
+export function rateTone(errorRate: number | null | undefined): Tone {
+  if (errorRate === null || errorRate === undefined) {
+    return "neutral";
+  }
+  if (errorRate >= 0.1) {
+    return "error";
+  }
+  if (errorRate >= 0.02) {
+    return "warning";
+  }
+  return "success";
+}
