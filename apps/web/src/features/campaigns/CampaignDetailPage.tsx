@@ -13,7 +13,10 @@ import { CampaignStatusBadge, HealthBadge } from "../../components/ui/StatusBadg
 import { ErrorState, LoadingRegion, Skeleton } from "../../components/ui/States";
 import type { Channel } from "../../gql/graphql";
 import { formatDateTime, formatInteger, formatLatency, formatPercent } from "../../lib/format";
+import { DeadLetterPanel } from "../dead-letters/DeadLetterPanel";
 import { EventTimeline, type EventTimelineFilters } from "../events/EventTimeline";
+import { CampaignIncidentsCard } from "../incidents/CampaignIncidentsCard";
+import { SimulationPanel } from "../simulation/SimulationPanel";
 import { ChannelHealthGrid } from "./ChannelHealthGrid";
 
 function readTimelineFilters(params: URLSearchParams): EventTimelineFilters {
@@ -167,6 +170,15 @@ export function CampaignDetailPage() {
           </h2>
           <ChannelHealthGrid channels={campaign.channels} />
         </section>
+
+        <SimulationPanel
+          campaignId={campaign.id}
+          channels={campaign.channels.map((channel) => channel.channel)}
+        />
+
+        <CampaignIncidentsCard campaignId={campaign.id} />
+
+        <DeadLetterPanel campaignId={campaign.id} />
 
         <EventTimeline campaignId={campaign.id} filters={filters} onFiltersChange={updateFilters} />
       </div>

@@ -15,6 +15,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Overview", icon: "layout-grid", end: true },
   { to: "/campaigns", label: "Campaigns", icon: "megaphone" },
+  { to: "/incidents", label: "Incidents", icon: "siren" },
+  { to: "/dead-letters", label: "Dead letters", icon: "archive" },
 ];
 
 const SIDEBAR_ID = "app-sidebar";

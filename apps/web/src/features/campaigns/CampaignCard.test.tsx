@@ -11,6 +11,8 @@ const campaign: CampaignListItem = {
   advertiserName: "Fizz Beverages",
   status: "ACTIVE",
   healthStatus: "CRITICAL",
+  openIncidentCount: 1,
+  deadLetterCount: 2,
   createdAt: "2026-09-06T09:00:00.000Z",
   metrics: {
     totalEvents: 300,

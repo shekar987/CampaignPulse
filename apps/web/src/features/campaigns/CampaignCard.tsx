@@ -77,6 +77,24 @@ export function CampaignCard({ campaign }: { campaign: CampaignListItem }) {
         })}
       </ul>
 
+      {campaign.openIncidentCount > 0 || campaign.deadLetterCount > 0 ? (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Operational flags">
+          {campaign.openIncidentCount > 0 ? (
+            <li className="inline-flex items-center gap-1 font-medium text-status-error-fg">
+              <Icon name="siren" size={14} />
+              {campaign.openIncidentCount} open{" "}
+              {campaign.openIncidentCount === 1 ? "incident" : "incidents"}
+            </li>
+          ) : null}
+          {campaign.deadLetterCount > 0 ? (
+            <li className="inline-flex items-center gap-1 font-medium text-status-warning-fg">
+              <Icon name="archive" size={14} />
+              {campaign.deadLetterCount} dead-lettered
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+
       <div className="mt-auto flex items-center justify-between border-t border-line-subtle pt-3">
         <CampaignStatusBadge status={campaign.status} />
         <Link

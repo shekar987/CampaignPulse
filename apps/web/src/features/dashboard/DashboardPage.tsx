@@ -145,6 +145,30 @@ function DashboardContent({ snapshot }: { snapshot: SystemHealth }) {
         </div>
       </section>
 
+      <section aria-labelledby="operations-heading">
+        <h2 id="operations-heading" className="mb-3 text-base font-semibold text-fg-primary">
+          Operations
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link to="/incidents?status=OPEN" className="block rounded-lg hover:shadow-md">
+            <MetricCard
+              label="Open incidents"
+              value={formatInteger(snapshot.openIncidents)}
+              hint="Investigating or acknowledged. Select to triage."
+              tone={snapshot.openIncidents > 0 ? "error" : "success"}
+            />
+          </Link>
+          <Link to="/dead-letters" className="block rounded-lg hover:shadow-md">
+            <MetricCard
+              label="Dead-letter queue"
+              value={formatInteger(snapshot.deadLetterCount)}
+              hint="Deliveries awaiting replay after exhausting their retries."
+              tone={snapshot.deadLetterCount > 0 ? "warning" : "success"}
+            />
+          </Link>
+        </div>
+      </section>
+
       <Card
         title="Needs attention"
         description="Campaigns whose delivery is degraded or critical, most severe first."
