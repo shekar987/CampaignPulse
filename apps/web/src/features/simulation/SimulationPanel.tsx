@@ -26,6 +26,7 @@ export function SimulationPanel({
     <Card
       title="Run simulation"
       description="Publish simulated delivery requests for this campaign and watch health, incidents and retries respond."
+      className="border-accent/30 bg-[linear-gradient(135deg,var(--color-accent-subtle),var(--color-surface-raised)_45%)]"
     >
       <div className="flex flex-col gap-4">
         <SimulationForm
