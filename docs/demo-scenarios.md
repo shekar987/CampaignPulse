@@ -2,9 +2,33 @@
 
 `npm run db:seed` loads a deterministic data set (same seed, same data every time; only the
 timestamps are anchored to the moment the seed runs). The scenarios below are all visible from
-the overview page and the campaign list after seeding.
+the overview page and the campaign list after seeding. The seed also derives the per-delivery
+rows, one dead-letter entry and the incidents the processor would have opened, so the incidents
+and dead-letter pages are populated from the start.
 
 Every campaign, advertiser and event is synthetic.
+
+## Running scenarios live
+
+Open any campaign and use **Run simulation**. Each preset is exact and reproducible from its seed:
+
+| Scenario              | Per channel                                           | What to watch                                           |
+| --------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| Healthy               | 100 deliveries, 1 fails once then succeeds on retry   | Health stays healthy; no incident                       |
+| Degraded              | 100 deliveries, 6 fail once                           | Channel degraded; a warning incident opens              |
+| Critical              | 100 deliveries, 22 fail once                          | Channel critical; a critical incident opens             |
+| Retry that succeeds   | 1 delivery: timeout, timeout, success                 | Follow the correlation id: three attempts, two backoffs |
+| Retries exhausted     | 1 delivery: three transient failures                  | Final failure; entry appears in the dead-letter queue   |
+| Non-retryable failure | 1 delivery: validation error                          | Dead-lettered immediately, no retry requested           |
+| Custom                | Your volume (1 to 500) and first-attempt failure rate | Push a channel across a threshold, then replay          |
+
+Incidents open only once a channel has 100 recorded attempts, so the single-delivery scenarios
+never open one on their own. Backoff is compressed locally (`RETRY_BACKOFF_SCALE=0.1`), so a
+retry chain completes in a few seconds rather than 35.
+
+The operator journey is: run **Critical**, open the incident, **Acknowledge**, **Retry failed
+deliveries** (replays anything in the dead-letter queue for that channel), then **Resolve** with
+a note. Every step lands on the campaign timeline.
 
 ## Scenario 1: healthy
 
@@ -44,14 +68,22 @@ DELIVERY_STARTED             attempt 3
 DELIVERY_RETRY_SUCCEEDED     attempt 3
 ```
 
-This counts as two failures and one success in the metrics (see the decision log for why).
-Automatic retry processing is built in phase 4; the seed only records what such a run looks like.
+This counts as two failures and one success in the metrics (see the decision log for why). The
+same chain is produced live by the **Retry that succeeds** scenario.
 
 ## Scenario 5: dead-letter queue
 
 Also on Summer Drinks / `SMARTSHOP`: the correlation id whose last event is **Final failure
-(dead-letter queue)** fails three times and is then marked `DELIVERY_FINAL_FAILURE`. Incident
-creation from this signal arrives in phase 3.
+(dead-letter queue)** fails three times and is then marked `DELIVERY_FINAL_FAILURE`. It is listed
+in the campaign's dead-letter queue as "Awaiting replay"; **Retry all failed deliveries** replays
+it as a new delivery (suffix `-r1`) and marks the entry replayed.
+
+## Seeded incidents
+
+Every seeded channel that is degraded or critical with at least 100 attempts has an open incident:
+Summer Drinks / SmartShop (critical), Pet Care Essentials / Mobile app (critical), Back to School
+/ Website, Bakery Bundles / In-store display and Skincare Spotlight / SmartShop (warnings). Coffee
+Club Launch is degraded on 50 attempts and therefore has none.
 
 ## No data
 
