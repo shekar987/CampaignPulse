@@ -1,0 +1,110 @@
+# CampaignPulse application deployment: three Lambda functions behind API Gateway and SQS.
+#
+# Platform resources (queues, topic, secret, log groups, alarms, dashboard) are provisioned by
+# Terraform in ../terraform, which publishes their identifiers to SSM Parameter Store. This file
+# reads them from SSM so the two tools never manage the same resource.
+#
+# Deploy:  npm run build:lambda && npx serverless deploy --stage dev   (from this directory)
+
+service: campaignpulse
+frameworkVersion: "4"
+
+build:
+  # Bundles are produced by apps/api/scripts/build-lambda.ts (esbuild) into .build/.
+  esbuild: false
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  architecture: arm64
+  region: ${opt:region, "eu-west-2"}
+  stage: ${opt:stage, "dev"}
+  memorySize: 512
+  timeout: 20
+  versionFunctions: false
+  logs:
+    logFormat: JSON
+  environment:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    EVENT_BUS: sqs
+    NOTIFICATIONS: sns
+    RETRY_BACKOFF_SCALE: "1"
+    SIMULATION_LATENCY_SCALE: "0.05"
+    DATABASE_SECRET_ARN: ${ssm:/campaignpulse/${sls:stage}/database-secret-arn}
+    DELIVERY_QUEUE_URL: ${ssm:/campaignpulse/${sls:stage}/delivery-queue-url}
+    DEAD_LETTER_QUEUE_URL: ${ssm:/campaignpulse/${sls:stage}/dead-letter-queue-url}
+    INCIDENT_TOPIC_ARN: ${ssm:/campaignpulse/${sls:stage}/incident-topic-arn}
+  httpApi:
+    cors: true
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:SendMessageBatch
+          Resource: ${ssm:/campaignpulse/${sls:stage}/delivery-queue-arn}
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - ${ssm:/campaignpulse/${sls:stage}/delivery-queue-arn}
+            - ${ssm:/campaignpulse/${sls:stage}/dead-letter-queue-arn}
+        - Effect: Allow
+          Action: sns:Publish
+          Resource: ${ssm:/campaignpulse/${sls:stage}/incident-topic-arn}
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource: ${ssm:/campaignpulse/${sls:stage}/database-secret-arn}
+
+package:
+  individually: true
+  patterns:
+    - "!./**"
+
+functions:
+  graphql:
+    handler: .build/graphql/index.handler
+    description: GraphQL API (queries, campaign creation, simulation and incident actions)
+    # Log groups are owned by Terraform so metric filters and alarms can reference them.
+    disableLogs: true
+    events:
+      - httpApi:
+          path: /graphql
+          method: "*"
+    package:
+      patterns:
+        - ".build/graphql/**"
+
+  deliveryWorker:
+    handler: .build/delivery-worker/index.handler
+    description: Consumes delivery requests, performs simulated deliveries, schedules retries
+    timeout: 60
+    reservedConcurrency: 5
+    disableLogs: true
+    events:
+      - sqs:
+          arn: ${ssm:/campaignpulse/${sls:stage}/delivery-queue-arn}
+          batchSize: 10
+          maximumBatchingWindow: 2
+          functionResponseType: ReportBatchItemFailures
+    package:
+      patterns:
+        - ".build/delivery-worker/**"
+
+  deadLetterConsumer:
+    handler: .build/dead-letter-consumer/index.handler
+    description: Records messages the worker gave up on and raises a notification
+    timeout: 30
+    disableLogs: true
+    events:
+      - sqs:
+          arn: ${ssm:/campaignpulse/${sls:stage}/dead-letter-queue-arn}
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+    package:
+      patterns:
+        - ".build/dead-letter-consumer/**"
