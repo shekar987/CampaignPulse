@@ -44,6 +44,7 @@ export function renderThemeCss(source: Tokens = tokens): string {
   }
 
   collect(["spacing"], source.spacing as NestedStrings, declarations);
+  collect(["container"], source.container as NestedStrings, declarations);
   collect(["radius"], source.radius as NestedStrings, declarations);
   collect(["shadow"], source.shadow as NestedStrings, declarations);
   collect(["breakpoint"], source.breakpoint as NestedStrings, declarations);

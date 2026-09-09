@@ -234,3 +234,15 @@ generated module and the Prisma query compiler carried as an embedded base64 mod
 
 **Why.** No native binaries, no file-system lookups at runtime and no layer to maintain. The
 bundle is exercised locally against PostgreSQL before it is ever deployed.
+
+## 25. Named widths reference container tokens explicitly
+
+**Decision.** The design tokens define a `container` scale (`--container-md` … `--container-7xl`)
+and components use it directly, e.g. `max-w-(--container-3xl)`, instead of the shorthand
+`max-w-3xl`.
+
+**Why.** The spacing scale uses the same names (`sm`, `md`, … `3xl`) as Tailwind's width scale,
+and Tailwind v4 resolves `max-w-3xl` from `--spacing-3xl` (3rem) before it looks at
+`--container-3xl` (48rem). Every description paragraph in the app was silently 48px wide, one
+word per line, and no test caught it; a screenshot did. Referencing the token by name removes
+the ambiguity and keeps the spacing names, which CSS Modules depend on.

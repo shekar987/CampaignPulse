@@ -18,7 +18,7 @@ export function EmptyState({ icon = "inbox", title, description, action }: Empty
       </span>
       <h3 className="text-base font-semibold text-fg-primary">{title}</h3>
       {description ? (
-        <p className="mt-1 max-w-md text-sm text-fg-secondary">{description}</p>
+        <p className="mt-1 max-w-(--container-md) text-sm text-fg-secondary">{description}</p>
       ) : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>

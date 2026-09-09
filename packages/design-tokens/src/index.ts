@@ -1,6 +1,7 @@
 export {
   breakpoint,
   color,
+  container,
   ease,
   font,
   layout,

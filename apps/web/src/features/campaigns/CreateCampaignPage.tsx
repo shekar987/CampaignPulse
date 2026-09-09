@@ -40,7 +40,7 @@ export function CreateCampaignPage() {
         title="New campaign"
         description="Create a demo campaign and choose the channels it is delivered to. Delivery events can be simulated once it exists."
       />
-      <div className="max-w-2xl">
+      <div className="max-w-(--container-2xl)">
         <CreateCampaignForm
           onSubmit={handleSubmit}
           submitting={mutation.isPending}

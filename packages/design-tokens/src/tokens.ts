@@ -84,6 +84,25 @@ export const spacing = {
   "3xl": "3rem",
 } as const;
 
+/**
+ * Named content widths for `max-w-*`. Declared explicitly because Tailwind resolves a named
+ * width from the spacing scale when no container token matches, and the spacing scale above
+ * reuses the same names (`max-w-3xl` would otherwise become 3rem).
+ */
+export const container = {
+  xs: "20rem",
+  sm: "24rem",
+  md: "28rem",
+  lg: "32rem",
+  xl: "36rem",
+  "2xl": "42rem",
+  "3xl": "48rem",
+  "4xl": "56rem",
+  "5xl": "64rem",
+  "6xl": "72rem",
+  "7xl": "80rem",
+} as const;
+
 export const radius = {
   sm: "0.25rem",
   md: "0.375rem",
@@ -123,6 +142,7 @@ export const tokens = {
   font,
   text,
   spacing,
+  container,
   radius,
   shadow,
   breakpoint,
