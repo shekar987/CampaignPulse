@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  One-time bootstrap for CampaignPulse: an IAM role that GitHub Actions assumes through OpenID
+  Connect to deploy the project. No long-lived access keys are created or stored anywhere.
+  Launch this stack once from the AWS console, then put the role ARN in the repository's
+  AWS_ROLE_TO_ASSUME secret.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: GitHub user or organisation that owns the repository (e.g. octocat).
+  GitHubRepo:
+    Type: String
+    Default: CampaignPulse
+    Description: Repository name.
+  Project:
+    Type: String
+    Default: campaignpulse
+    Description: Resource name prefix used by the Terraform and Serverless stacks.
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Create the GitHub OIDC identity provider. Choose false if this account already has
+      token.actions.githubusercontent.com registered.
+
+Conditions:
+  ShouldCreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  TerraformStateBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${Project}-terraform-state-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        # GitHub's root CA thumbprint; AWS now validates the certificate chain itself, but the
+        # property remains required.
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${Project}-github-deploy"
+      Description: Assumed by GitHub Actions to deploy CampaignPulse.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateProvider
+                - !Ref GitHubOidcProvider
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # Any branch, tag or environment of this one repository, nothing else.
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
+      ManagedPolicyArns:
+        # Everything except IAM; the statements below add the IAM rights the stacks need,
+        # limited to roles and policies carrying the project prefix.
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: project-iam
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ManageProjectRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:UpdateRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:UpdateAssumeRolePolicy
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${Project}-*"
+              - Sid: ManageProjectPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:policy/${Project}-*"
+              - Sid: ServiceLinkedRoles
+                Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: "*"
+              - Sid: ReadIam
+                Effect: Allow
+                Action:
+                  - iam:ListRoles
+                  - iam:ListPolicies
+                  - iam:GetOpenIDConnectProvider
+                Resource: "*"
+
+Outputs:
+  DeployRoleArn:
+    Description: Put this value in the repository secret AWS_ROLE_TO_ASSUME.
+    Value: !GetAtt DeployRole.Arn
+  TerraformStateBucket:
+    Description: Terraform state bucket the workflows use (derived from the account id, no secret needed).
+    Value: !Ref TerraformStateBucket
