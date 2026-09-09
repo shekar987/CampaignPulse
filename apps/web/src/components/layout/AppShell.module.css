@@ -208,6 +208,7 @@
     height: auto;
     overflow: visible;
     clip: auto;
+    white-space: normal;
   }
 
   .navLink {
