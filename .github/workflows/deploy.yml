@@ -1,14 +1,16 @@
 name: Deploy to AWS
 
-# Manual, per stage. Provisions the platform with Terraform, applies database migrations, then
-# deploys the Lambda functions with the Serverless Framework.
+# Manual, per stage. Provisions the platform with Terraform, applies database migrations, deploys
+# the Lambda functions with the Serverless Framework, then builds and publishes the web app.
 #
-# Required repository secrets:
-#   AWS_ROLE_TO_ASSUME     IAM role trusted by GitHub OIDC with rights to manage the stack
-#   DATABASE_URL           PostgreSQL connection string for the target stage (used for migrations
-#                          and stored in Secrets Manager by Terraform)
-#   SERVERLESS_ACCESS_KEY  Serverless Framework v4 licence/access key
-#   ALERT_EMAIL            (optional) address subscribed to the incident topic
+# One-time setup (see docs/deploy-runbook.md):
+#   1. Launch infrastructure/bootstrap/github-oidc-role.yml in the AWS console.
+#   2. Repository secrets:
+#        AWS_ROLE_TO_ASSUME     the role ARN from that stack's outputs
+#        SERVERLESS_ACCESS_KEY  Serverless Framework v4 access key (free account)
+#        ALERT_EMAIL            optional: address subscribed to the incident topic
+#        DATABASE_URL           optional: only when "Create an RDS database" is unticked
+#   3. Run this workflow.
 
 on:
   workflow_dispatch:
@@ -23,6 +25,11 @@ on:
         description: AWS region
         required: true
         default: eu-west-2
+      create_database:
+        description: Create an RDS PostgreSQL database (untick to use the DATABASE_URL secret)
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   id-token: write
@@ -31,15 +38,16 @@ permissions:
 concurrency:
   group: deploy-${{ inputs.stage }}
 
+env:
+  AWS_REGION: ${{ inputs.region }}
+  STAGE: ${{ inputs.stage }}
+
 jobs:
   deploy:
     name: Deploy ${{ inputs.stage }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: ${{ inputs.stage }}
-    env:
-      AWS_REGION: ${{ inputs.region }}
-      STAGE: ${{ inputs.stage }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -50,7 +58,7 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -61,34 +69,98 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Provision platform (queues, topic, secret, observability)
+      - name: Provision platform (queues, topic, secret, observability, hosting, database)
+        id: terraform
         working-directory: infrastructure/terraform
         env:
           TF_VAR_stage: ${{ inputs.stage }}
           TF_VAR_region: ${{ inputs.region }}
+          TF_VAR_create_database: ${{ inputs.create_database }}
           TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
           TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
         run: |
-          terraform init -input=false
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -input=false \
+            -backend-config="bucket=campaignpulse-terraform-state-${account_id}" \
+            -backend-config="key=campaignpulse/${STAGE}.tfstate" \
+            -backend-config="region=${AWS_REGION}"
           terraform apply -input=false -auto-approve
+          echo "secret_arn=$(terraform output -raw database_secret_arn)" >> "$GITHUB_OUTPUT"
+          echo "web_bucket=$(terraform output -raw web_bucket)" >> "$GITHUB_OUTPUT"
+          echo "web_distribution_id=$(terraform output -raw web_distribution_id)" >> "$GITHUB_OUTPUT"
+          echo "web_url=$(terraform output -raw web_url)" >> "$GITHUB_OUTPUT"
+
+      - name: Read the database connection string from Secrets Manager
+        id: database
+        run: |
+          url=$(aws secretsmanager get-secret-value \
+            --secret-id "${{ steps.terraform.outputs.secret_arn }}" \
+            --query SecretString --output text)
+          echo "::add-mask::$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Generate Prisma client and GraphQL types
         run: npm run codegen
+        env:
+          DATABASE_URL: ${{ steps.database.outputs.url }}
 
       - name: Apply database migrations
         working-directory: apps/api
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ steps.database.outputs.url }}
         run: npx prisma migrate deploy
+
+      - name: Seed demo data on first deploy
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ steps.database.outputs.url }}
+        run: |
+          count=$(node -e "
+            const { Client } = require('pg');
+            const c = new Client({ connectionString: process.env.DATABASE_URL });
+            c.connect().then(() => c.query('select count(*)::int as n from campaigns'))
+              .then(r => { console.log(r.rows[0].n); return c.end(); });
+          ")
+          if [ "$count" = "0" ]; then npx prisma db seed; else echo "database already has $count campaigns; not seeding"; fi
 
       - name: Bundle Lambda handlers
         run: npm run build:lambda
 
       - name: Deploy functions
+        id: functions
         working-directory: infrastructure/serverless
         env:
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-        run: npx serverless@4 deploy --stage "$STAGE" --region "$AWS_REGION"
+        run: |
+          npx serverless@4 deploy --stage "$STAGE" --region "$AWS_REGION"
+          api_url=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='$STAGE-campaignpulse'].ApiEndpoint | [0]" --output text)
+          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
+
+      - name: Build the web app against the deployed API
+        env:
+          VITE_GRAPHQL_URL: ${{ steps.functions.outputs.api_url }}/graphql
+        run: npm run build -w apps/web
+
+      - name: Publish the web app
+        run: |
+          aws s3 sync apps/web/dist "s3://${{ steps.terraform.outputs.web_bucket }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.terraform.outputs.web_distribution_id }}" --paths "/*" >/dev/null
+
+      - name: Summary
+        run: |
+          {
+            echo "## CampaignPulse ${STAGE} deployed"
+            echo
+            echo "| What | Where |"
+            echo "| --- | --- |"
+            echo "| Web app | ${{ steps.terraform.outputs.web_url }} |"
+            echo "| GraphQL API | ${{ steps.functions.outputs.api_url }}/graphql |"
+            echo "| CloudWatch dashboard | https://${AWS_REGION}.console.aws.amazon.com/cloudwatch/home?region=${AWS_REGION}#dashboards:name=campaignpulse-${STAGE} |"
+            echo
+            echo "CloudFront can take a few minutes to serve the first deployment."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,81 @@
+name: Tear down AWS stage
+
+# Removes everything the deploy workflow created for a stage, functions first, then the platform.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Stage to tear down
+        required: true
+        default: dev
+        type: choice
+        options: [dev, staging, prod]
+      region:
+        description: AWS region
+        required: true
+        default: eu-west-2
+      confirm:
+        description: Type the stage name again to confirm
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.stage }}
+
+jobs:
+  destroy:
+    name: Tear down ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.stage }}
+    if: inputs.confirm == inputs.stage
+    env:
+      AWS_REGION: ${{ inputs.region }}
+      STAGE: ${{ inputs.stage }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Remove functions
+        working-directory: infrastructure/serverless
+        env:
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+        run: npx serverless@4 remove --stage "$STAGE" --region "$AWS_REGION" || true
+
+      - name: Destroy platform
+        working-directory: infrastructure/terraform
+        env:
+          TF_VAR_stage: ${{ inputs.stage }}
+          TF_VAR_region: ${{ inputs.region }}
+          TF_VAR_database_url: "placeholder"
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          terraform init -input=false \
+            -backend-config="bucket=campaignpulse-terraform-state-${account_id}" \
+            -backend-config="key=campaignpulse/${STAGE}.tfstate" \
+            -backend-config="region=${AWS_REGION}"
+          terraform destroy -input=false -auto-approve
