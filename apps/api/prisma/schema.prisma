@@ -83,6 +83,18 @@ enum IncidentSeverity {
   CRITICAL
 }
 
+enum DeadLetterReason {
+  RETRIES_EXHAUSTED
+  NON_RETRYABLE_ERROR
+  PROCESSING_FAILURE
+}
+
+enum DeadLetterStatus {
+  PENDING
+  REPLAYED
+  DISCARDED
+}
+
 model Campaign {
   id             String         @id @default(uuid(7)) @db.Uuid
   name           String         @db.VarChar(255)
@@ -92,13 +104,64 @@ model Campaign {
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  channels  CampaignChannel[]
-  events    DeliveryEvent[]
-  incidents Incident[]
+  channels          CampaignChannel[]
+  events            DeliveryEvent[]
+  incidents         Incident[]
+  deliveries        Delivery[]
+  deadLetterEntries DeadLetterEntry[]
 
   @@index([healthStatus])
   @@index([createdAt(sort: Desc)])
   @@map("campaigns")
+}
+
+/// One row per delivery workflow (correlation id). Holds the current status so transitions can
+/// be enforced atomically, and the simulation parameters so retries and replays reuse them.
+model Delivery {
+  correlationId    String      @id @map("correlation_id") @db.VarChar(255)
+  campaignId       String      @map("campaign_id") @db.Uuid
+  channel          Channel
+  status           EventStatus @default(PENDING)
+  attempts         Int         @default(0)
+  lastErrorCode    ErrorCode?  @map("last_error_code")
+  lastErrorMessage String?     @map("last_error_message")
+  simulation       Json?
+  requestedAt      DateTime    @map("requested_at") @db.Timestamptz(3)
+  completedAt      DateTime?   @map("completed_at") @db.Timestamptz(3)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([campaignId, channel, requestedAt(sort: Desc)])
+  @@map("deliveries")
+}
+
+/// Deliveries that could not be completed: retries exhausted, a non-retryable error, or a
+/// message the worker could not process at all. Engineers replay or discard them from the UI.
+model DeadLetterEntry {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  campaignId          String           @map("campaign_id") @db.Uuid
+  correlationId       String           @unique @map("correlation_id") @db.VarChar(255)
+  channel             Channel
+  attempts            Int
+  lastErrorCode       ErrorCode        @map("last_error_code")
+  lastErrorMessage    String           @map("last_error_message")
+  reason              DeadLetterReason
+  payload             Json
+  status              DeadLetterStatus @default(PENDING)
+  enqueuedAt          DateTime         @map("enqueued_at") @db.Timestamptz(3)
+  replayedAt          DateTime?        @map("replayed_at") @db.Timestamptz(3)
+  replayCorrelationId String?          @map("replay_correlation_id") @db.VarChar(255)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([status, enqueuedAt(sort: Desc)])
+  @@map("dead_letter_entries")
 }
 
 model CampaignChannel {
@@ -141,19 +204,25 @@ model DeliveryEvent {
   @@map("delivery_events")
 }
 
+/// A detected reliability problem on one campaign channel. At most one incident per campaign
+/// channel can be unresolved at a time (partial unique index in the migration).
 model Incident {
-  id             String           @id @default(uuid(7)) @db.Uuid
-  campaignId     String           @map("campaign_id") @db.Uuid
-  channel        Channel
-  status         IncidentStatus   @default(OPEN)
-  severity       IncidentSeverity
-  title          String           @db.VarChar(255)
-  description    String?
-  startedAt      DateTime         @map("started_at") @db.Timestamptz(3)
-  acknowledgedAt DateTime?        @map("acknowledged_at") @db.Timestamptz(3)
-  resolvedAt     DateTime?        @map("resolved_at") @db.Timestamptz(3)
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                      String           @id @default(uuid(7)) @db.Uuid
+  campaignId              String           @map("campaign_id") @db.Uuid
+  channel                 Channel
+  status                  IncidentStatus   @default(OPEN)
+  severity                IncidentSeverity
+  title                   String           @db.VarChar(255)
+  description             String?
+  errorRateAtDetection    Float?           @map("error_rate_at_detection")
+  failedEventsAtDetection Int?             @map("failed_events_at_detection")
+  totalEventsAtDetection  Int?             @map("total_events_at_detection")
+  resolutionNote          String?          @map("resolution_note")
+  startedAt               DateTime         @map("started_at") @db.Timestamptz(3)
+  acknowledgedAt          DateTime?        @map("acknowledged_at") @db.Timestamptz(3)
+  resolvedAt              DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt               DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
