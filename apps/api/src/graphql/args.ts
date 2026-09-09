@@ -2,12 +2,16 @@ import { ChannelSchema, HealthStatusSchema } from "@campaignpulse/event-contract
 import { z } from "zod";
 
 import type { CampaignListParams } from "../services/campaign-service";
+import type { DeadLetterListParams } from "../services/dead-letter-service";
 import type { DeliveryEventListParams } from "../services/delivery-event-service";
 import { ValidationError } from "../services/errors";
+import type { IncidentListParams } from "../services/incident-service";
 import { MAX_PAGE_SIZE } from "../services/pagination";
 
 export const DEFAULT_CAMPAIGN_PAGE_SIZE = 9;
 export const DEFAULT_EVENT_PAGE_SIZE = 25;
+export const DEFAULT_INCIDENT_PAGE_SIZE = 20;
+export const DEFAULT_DEAD_LETTER_PAGE_SIZE = 20;
 
 const pageSchema = z.number().int().min(1, "page must be 1 or greater");
 const pageSizeSchema = z
@@ -33,6 +37,26 @@ const deliveryEventListArgsSchema = z.object({
   campaignId: z.string().min(1),
   channel: ChannelSchema.nullish(),
   correlationId: z.string().trim().max(255).nullish(),
+  page: pageSchema.nullish(),
+  pageSize: pageSizeSchema.nullish(),
+});
+
+const incidentListArgsSchema = z.object({
+  filter: z
+    .object({
+      status: z.enum(["OPEN", "ACKNOWLEDGED", "RESOLVED"]).nullish(),
+      severity: z.enum(["WARNING", "CRITICAL"]).nullish(),
+      campaignId: z.string().nullish(),
+      channel: ChannelSchema.nullish(),
+    })
+    .nullish(),
+  page: pageSchema.nullish(),
+  pageSize: pageSizeSchema.nullish(),
+});
+
+const deadLetterListArgsSchema = z.object({
+  campaignId: z.string().nullish(),
+  status: z.enum(["PENDING", "REPLAYED", "DISCARDED"]).nullish(),
   page: pageSchema.nullish(),
   pageSize: pageSizeSchema.nullish(),
 });
@@ -70,6 +94,30 @@ export function parseDeliveryEventListArgs(args: unknown): DeliveryEventListPara
   };
 }
 
+/** Validates `incidents` query arguments and fills in defaults. */
+export function parseIncidentListArgs(args: unknown): IncidentListParams {
+  const parsed = parse(incidentListArgsSchema, args);
+  return {
+    status: parsed.filter?.status ?? undefined,
+    severity: parsed.filter?.severity ?? undefined,
+    campaignId: parsed.filter?.campaignId ?? undefined,
+    channel: parsed.filter?.channel ?? undefined,
+    page: parsed.page ?? 1,
+    pageSize: parsed.pageSize ?? DEFAULT_INCIDENT_PAGE_SIZE,
+  };
+}
+
+/** Validates `deadLetterEntries` query arguments and fills in defaults. */
+export function parseDeadLetterListArgs(args: unknown): DeadLetterListParams {
+  const parsed = parse(deadLetterListArgsSchema, args);
+  return {
+    campaignId: parsed.campaignId ?? undefined,
+    status: parsed.status ?? undefined,
+    page: parsed.page ?? 1,
+    pageSize: parsed.pageSize ?? DEFAULT_DEAD_LETTER_PAGE_SIZE,
+  };
+}
+
 const uuidSchema = z.uuid();
 
 /**
@@ -78,4 +126,14 @@ const uuidSchema = z.uuid();
  */
 export function isUuid(value: string): boolean {
   return uuidSchema.safeParse(value).success;
+}
+
+/** Like `isUuid`, but raises a client error for mutations where "not found" would mislead. */
+export function requireUuid(value: string, field: string): string {
+  if (!isUuid(value)) {
+    throw new ValidationError("Query arguments are invalid", [
+      { path: field, message: `${field} must be a UUID` },
+    ]);
+  }
+  return value;
 }

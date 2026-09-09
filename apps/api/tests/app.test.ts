@@ -10,16 +10,24 @@ import type { PrismaClient } from "../src/db/client";
  * integration suite that runs against PostgreSQL.
  */
 function buildApp() {
+  const logger = pino({ level: "silent" });
   return createApp({
     db: {} as PrismaClient,
-    logger: pino({ level: "silent" }),
+    logger,
     config: {
       NODE_ENV: "test",
       PORT: 0,
       LOG_LEVEL: "silent",
       DATABASE_URL: "postgresql://localhost:5432/test",
+      EVENT_BUS: "local",
+      NOTIFICATIONS: "log",
+      LOCAL_BUS_CONCURRENCY: 1,
+      RETRY_BACKOFF_SCALE: 0,
+      SIMULATION_LATENCY_SCALE: 0,
     },
     version: "0.1.0-test",
+    bus: { publish: async () => {}, publishBatch: async () => {} },
+    notifications: { publish: async () => {} },
   });
 }
 

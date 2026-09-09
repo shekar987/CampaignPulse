@@ -67,6 +67,39 @@ enum CampaignSort {
   NAME
 }
 
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum IncidentSeverity {
+  WARNING
+  CRITICAL
+}
+
+enum DeadLetterStatus {
+  PENDING
+  REPLAYED
+  DISCARDED
+}
+
+enum DeadLetterReason {
+  RETRIES_EXHAUSTED
+  NON_RETRYABLE_ERROR
+  PROCESSING_FAILURE
+}
+
+enum SimulationScenario {
+  HEALTHY
+  DEGRADED
+  CRITICAL
+  RETRY_SUCCESS
+  DEAD_LETTER
+  NON_RETRYABLE
+  CUSTOM
+}
+
 """
 Delivery outcome metrics for a scope (system, campaign or channel). Rates are fractions
 between 0 and 1 and are null when there are no events to measure, never 0.
@@ -95,8 +128,90 @@ type Campaign {
   healthStatus: HealthStatus!
   channels: [CampaignChannel!]!
   metrics: DeliveryMetrics!
+  """
+  Incidents that are open or acknowledged.
+  """
+  openIncidentCount: Int!
+  """
+  Dead-lettered deliveries waiting to be replayed.
+  """
+  deadLetterCount: Int!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+type Incident {
+  id: ID!
+  campaignId: ID!
+  campaignName: String!
+  advertiserName: String!
+  channel: Channel!
+  status: IncidentStatus!
+  severity: IncidentSeverity!
+  title: String!
+  description: String
+  errorRateAtDetection: Float
+  failedEventsAtDetection: Int
+  totalEventsAtDetection: Int
+  resolutionNote: String
+  startedAt: DateTime!
+  acknowledgedAt: DateTime
+  resolvedAt: DateTime
+  updatedAt: DateTime!
+  """
+  Health of the affected channel right now, so an engineer can judge whether it has recovered.
+  """
+  currentChannelHealth: HealthStatus!
+  currentMetrics: DeliveryMetrics!
+}
+
+type IncidentPage {
+  items: [Incident!]!
+  totalCount: Int!
+  page: Int!
+  pageSize: Int!
+  totalPages: Int!
+}
+
+type DeadLetterEntry {
+  id: ID!
+  campaignId: ID!
+  campaignName: String!
+  correlationId: String!
+  channel: Channel!
+  attempts: Int!
+  lastError: DeliveryError!
+  reason: DeadLetterReason!
+  status: DeadLetterStatus!
+  enqueuedAt: DateTime!
+  replayedAt: DateTime
+  replayCorrelationId: String
+}
+
+type DeadLetterPage {
+  items: [DeadLetterEntry!]!
+  totalCount: Int!
+  page: Int!
+  pageSize: Int!
+  totalPages: Int!
+}
+
+type SimulationRun {
+  id: ID!
+  campaignId: ID!
+  channels: [Channel!]!
+  scenario: SimulationScenario!
+  deliveries: Int!
+  """
+  Seed that decided which deliveries fail; pass it back to reproduce the run.
+  """
+  seed: Int!
+  startedAt: DateTime!
+}
+
+type ReplayResult {
+  replayed: Int!
+  correlationIds: [String!]!
 }
 
 type CampaignPage {
@@ -166,6 +281,8 @@ type SystemHealth {
   Campaigns that are currently degraded or critical, most severe first.
   """
   attention: [Campaign!]!
+  openIncidents: Int!
+  deadLetterCount: Int!
 }
 
 type ServiceStatus {
@@ -188,6 +305,31 @@ input CreateCampaignInput {
   channels: [Channel!]!
 }
 
+input IncidentFilter {
+  status: IncidentStatus
+  severity: IncidentSeverity
+  campaignId: ID
+  channel: Channel
+}
+
+input SimulateDeliveryInput {
+  campaignId: ID!
+  """
+  Defaults to every channel the campaign is configured for.
+  """
+  channels: [Channel!]
+  scenario: SimulationScenario!
+  """
+  CUSTOM only: deliveries per channel (1-500).
+  """
+  deliveries: Int
+  """
+  CUSTOM only: probability that a delivery fails its first attempt (0-1).
+  """
+  failureRate: Float
+  seed: Int
+}
+
 type Query {
   status: ServiceStatus!
   systemHealth: SystemHealth!
@@ -206,8 +348,26 @@ type Query {
     page: Int = 1
     pageSize: Int = 25
   ): DeliveryEventPage!
+  incidents(filter: IncidentFilter, page: Int = 1, pageSize: Int = 20): IncidentPage!
+  incident(id: ID!): Incident
+  deadLetterEntries(
+    campaignId: ID
+    status: DeadLetterStatus
+    page: Int = 1
+    pageSize: Int = 20
+  ): DeadLetterPage!
 }
 
 type Mutation {
   createCampaign(input: CreateCampaignInput!): Campaign!
+  """
+  Publishes simulated delivery requests for a campaign. Workers process them asynchronously.
+  """
+  simulateDelivery(input: SimulateDeliveryInput!): SimulationRun!
+  """
+  Replays every pending dead-lettered delivery for a campaign, optionally one channel.
+  """
+  retryFailedDeliveries(campaignId: ID!, channel: Channel): ReplayResult!
+  acknowledgeIncident(id: ID!): Incident!
+  resolveIncident(id: ID!, note: String): Incident!
 }

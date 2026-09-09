@@ -1,5 +1,11 @@
 import { buildPage } from "../../services/pagination";
-import { isUuid, parseCampaignListArgs, parseDeliveryEventListArgs } from "../args";
+import {
+  isUuid,
+  parseCampaignListArgs,
+  parseDeadLetterListArgs,
+  parseDeliveryEventListArgs,
+  parseIncidentListArgs,
+} from "../args";
 import type { QueryResolvers } from "../generated/types";
 
 export const queryResolvers: QueryResolvers = {
@@ -20,5 +26,23 @@ export const queryResolvers: QueryResolvers = {
       return buildPage([], 0, params);
     }
     return ctx.services.events.list(params);
+  },
+
+  incidents: (_parent, args, ctx) => {
+    const params = parseIncidentListArgs(args);
+    if (params.campaignId && !isUuid(params.campaignId)) {
+      return buildPage([], 0, params);
+    }
+    return ctx.services.incidents.list(params);
+  },
+
+  incident: (_parent, { id }, ctx) => (isUuid(id) ? ctx.services.incidents.findById(id) : null),
+
+  deadLetterEntries: (_parent, args, ctx) => {
+    const params = parseDeadLetterListArgs(args);
+    if (params.campaignId && !isUuid(params.campaignId)) {
+      return buildPage([], 0, params);
+    }
+    return ctx.services.deadLetters.list(params);
   },
 };

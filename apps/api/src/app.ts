@@ -15,9 +15,11 @@ import {
 
 import type { AppConfig } from "./config";
 import type { PrismaClient } from "./db/client";
+import type { EventBus } from "./events/event-bus";
 import type { GraphQLContext } from "./graphql/context";
 import { resolvers } from "./graphql/resolvers";
 import type { Logger } from "./logging/logger";
+import type { NotificationPublisher } from "./notifications/notification-publisher";
 import { AppError, SystemService, buildServices } from "./services";
 
 export interface AppDependencies {
@@ -25,6 +27,8 @@ export interface AppDependencies {
   logger: Logger;
   config: AppConfig;
   version: string;
+  bus: EventBus;
+  notifications: NotificationPublisher;
 }
 
 export type App = ReturnType<typeof createApp>;
@@ -61,7 +65,13 @@ export function createApp(deps: AppDependencies) {
         db: deps.db,
         logger,
         requestId,
-        services: buildServices({ db: deps.db, logger, system }),
+        services: buildServices({
+          db: deps.db,
+          logger,
+          system,
+          bus: deps.bus,
+          notifications: deps.notifications,
+        }),
       };
     },
     plugins: [operationLoggingPlugin(), requestIdHeaderPlugin(requestIds)],
