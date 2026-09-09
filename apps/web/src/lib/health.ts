@@ -1,0 +1,35 @@
+import type { CampaignStatus, EventStatus, HealthStatus } from "@campaignpulse/event-contracts";
+
+import type { IconName } from "../components/ui/Icon";
+
+export type Tone = "success" | "warning" | "error" | "neutral" | "info";
+
+export const HEALTH_TONES: Record<HealthStatus, Tone> = {
+  HEALTHY: "success",
+  DEGRADED: "warning",
+  CRITICAL: "error",
+  UNKNOWN: "neutral",
+};
+
+export const HEALTH_ICONS: Record<HealthStatus, IconName> = {
+  HEALTHY: "check-circle",
+  DEGRADED: "alert-triangle",
+  CRITICAL: "alert-octagon",
+  UNKNOWN: "minus-circle",
+};
+
+export const CAMPAIGN_STATUS_TONES: Record<CampaignStatus, Tone> = {
+  DRAFT: "neutral",
+  ACTIVE: "info",
+  PAUSED: "warning",
+  COMPLETED: "neutral",
+};
+
+export const EVENT_STATUS_TONES: Record<EventStatus, Tone> = {
+  PENDING: "neutral",
+  PROCESSING: "info",
+  SUCCESS: "success",
+  FAILED: "error",
+  RETRYING: "warning",
+  FINAL_FAILURE: "error",
+};
