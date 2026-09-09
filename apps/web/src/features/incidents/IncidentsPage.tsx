@@ -166,7 +166,13 @@ export function IncidentsPage() {
 
 function IncidentRow({ incident }: { incident: Incident }) {
   return (
-    <li className="rounded-lg border border-line-subtle bg-surface-raised p-4 shadow-sm">
+    <li
+      className={`rounded-lg border border-line-subtle border-l-4 bg-surface-raised p-4 shadow-sm ${
+        incident.severity === "CRITICAL"
+          ? "border-l-status-error-solid"
+          : "border-l-status-warning-solid"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-fg-primary">
