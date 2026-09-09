@@ -10,6 +10,8 @@ export const SystemHealthDocument = graphql(`
     systemHealth {
       windowHours
       generatedAt
+      openIncidents
+      deadLetterCount
       channels {
         channel
         healthStatus
@@ -42,6 +44,7 @@ export const SystemHealthDocument = graphql(`
         advertiserName
         status
         healthStatus
+        openIncidentCount
         metrics {
           totalEvents
           errorRate
@@ -69,6 +72,8 @@ export const CampaignsDocument = graphql(`
         advertiserName
         status
         healthStatus
+        openIncidentCount
+        deadLetterCount
         createdAt
         metrics {
           totalEvents
@@ -105,6 +110,8 @@ export const CampaignDocument = graphql(`
       advertiserName
       status
       healthStatus
+      openIncidentCount
+      deadLetterCount
       createdAt
       updatedAt
       metrics {
@@ -169,12 +176,132 @@ export const DeliveryEventsDocument = graphql(`
   }
 `);
 
+export const IncidentFields = graphql(`
+  fragment IncidentFields on Incident {
+    id
+    campaignId
+    campaignName
+    advertiserName
+    channel
+    status
+    severity
+    title
+    description
+    errorRateAtDetection
+    failedEventsAtDetection
+    totalEventsAtDetection
+    resolutionNote
+    startedAt
+    acknowledgedAt
+    resolvedAt
+    updatedAt
+    currentChannelHealth
+    currentMetrics {
+      totalEvents
+      successfulEvents
+      failedEvents
+      successRate
+      errorRate
+      avgLatencyMs
+    }
+  }
+`);
+
+export const IncidentsDocument = graphql(`
+  query Incidents($filter: IncidentFilter, $page: Int, $pageSize: Int) {
+    incidents(filter: $filter, page: $page, pageSize: $pageSize) {
+      items {
+        ...IncidentFields
+      }
+      totalCount
+      page
+      pageSize
+      totalPages
+    }
+  }
+`);
+
+export const IncidentDocument = graphql(`
+  query Incident($id: ID!) {
+    incident(id: $id) {
+      ...IncidentFields
+    }
+  }
+`);
+
+export const DeadLetterEntriesDocument = graphql(`
+  query DeadLetterEntries($campaignId: ID, $status: DeadLetterStatus, $page: Int, $pageSize: Int) {
+    deadLetterEntries(campaignId: $campaignId, status: $status, page: $page, pageSize: $pageSize) {
+      items {
+        id
+        campaignId
+        campaignName
+        correlationId
+        channel
+        attempts
+        lastError {
+          code
+          message
+        }
+        reason
+        status
+        enqueuedAt
+        replayedAt
+        replayCorrelationId
+      }
+      totalCount
+      page
+      pageSize
+      totalPages
+    }
+  }
+`);
+
 export const CreateCampaignDocument = graphql(`
   mutation CreateCampaign($input: CreateCampaignInput!) {
     createCampaign(input: $input) {
       id
       name
       healthStatus
+    }
+  }
+`);
+
+export const SimulateDeliveryDocument = graphql(`
+  mutation SimulateDelivery($input: SimulateDeliveryInput!) {
+    simulateDelivery(input: $input) {
+      id
+      campaignId
+      channels
+      scenario
+      deliveries
+      seed
+      startedAt
+    }
+  }
+`);
+
+export const RetryFailedDeliveriesDocument = graphql(`
+  mutation RetryFailedDeliveries($campaignId: ID!, $channel: Channel) {
+    retryFailedDeliveries(campaignId: $campaignId, channel: $channel) {
+      replayed
+      correlationIds
+    }
+  }
+`);
+
+export const AcknowledgeIncidentDocument = graphql(`
+  mutation AcknowledgeIncident($id: ID!) {
+    acknowledgeIncident(id: $id) {
+      ...IncidentFields
+    }
+  }
+`);
+
+export const ResolveIncidentDocument = graphql(`
+  mutation ResolveIncident($id: ID!, $note: String) {
+    resolveIncident(id: $id, note: $note) {
+      ...IncidentFields
     }
   }
 `);

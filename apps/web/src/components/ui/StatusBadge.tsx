@@ -1,10 +1,20 @@
 import type { CampaignStatus, EventStatus, HealthStatus } from "@campaignpulse/event-contracts";
-import { CAMPAIGN_STATUS_LABELS, EVENT_STATUS_LABELS, HEALTH_LABELS } from "@campaignpulse/shared";
+import {
+  CAMPAIGN_STATUS_LABELS,
+  DEAD_LETTER_STATUS_LABELS,
+  EVENT_STATUS_LABELS,
+  HEALTH_LABELS,
+  INCIDENT_SEVERITY_LABELS,
+  INCIDENT_STATUS_LABELS,
+} from "@campaignpulse/shared";
 import type { ReactNode } from "react";
 
 import {
   CAMPAIGN_STATUS_TONES,
+  DEAD_LETTER_STATUS_TONES,
   EVENT_STATUS_TONES,
+  INCIDENT_SEVERITY_TONES,
+  INCIDENT_STATUS_TONES,
   HEALTH_ICONS,
   HEALTH_TONES,
   type Tone,
@@ -77,5 +87,57 @@ export function CampaignStatusBadge({ status }: { status: CampaignStatus }) {
 export function EventStatusBadge({ status }: { status: EventStatus }) {
   return (
     <StatusBadge tone={EVENT_STATUS_TONES[status]} label={EVENT_STATUS_LABELS[status]} size="sm" />
+  );
+}
+
+export function IncidentStatusBadge({
+  status,
+  size = "sm",
+}: {
+  status: keyof typeof INCIDENT_STATUS_LABELS;
+  size?: StatusBadgeProps["size"];
+}) {
+  return (
+    <StatusBadge
+      tone={INCIDENT_STATUS_TONES[status]}
+      label={INCIDENT_STATUS_LABELS[status]}
+      size={size}
+    />
+  );
+}
+
+export function SeverityBadge({
+  severity,
+  size = "sm",
+}: {
+  severity: keyof typeof INCIDENT_SEVERITY_LABELS;
+  size?: StatusBadgeProps["size"];
+}) {
+  return (
+    <StatusBadge
+      tone={INCIDENT_SEVERITY_TONES[severity]}
+      label={INCIDENT_SEVERITY_LABELS[severity]}
+      icon={
+        <Icon
+          name={severity === "CRITICAL" ? "alert-octagon" : "alert-triangle"}
+          size={size === "sm" ? 12 : 14}
+        />
+      }
+      size={size}
+    />
+  );
+}
+
+export function DeadLetterStatusBadge({
+  status,
+}: {
+  status: keyof typeof DEAD_LETTER_STATUS_LABELS;
+}) {
+  return (
+    <StatusBadge
+      tone={DEAD_LETTER_STATUS_TONES[status]}
+      label={DEAD_LETTER_STATUS_LABELS[status]}
+      size="sm"
+    />
   );
 }

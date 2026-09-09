@@ -33,3 +33,20 @@ export const EVENT_STATUS_TONES: Record<EventStatus, Tone> = {
   RETRYING: "warning",
   FINAL_FAILURE: "error",
 };
+
+export const INCIDENT_STATUS_TONES = {
+  OPEN: "error",
+  ACKNOWLEDGED: "warning",
+  RESOLVED: "success",
+} as const satisfies Record<string, Tone>;
+
+export const INCIDENT_SEVERITY_TONES = {
+  WARNING: "warning",
+  CRITICAL: "error",
+} as const satisfies Record<string, Tone>;
+
+export const DEAD_LETTER_STATUS_TONES = {
+  PENDING: "error",
+  REPLAYED: "info",
+  DISCARDED: "neutral",
+} as const satisfies Record<string, Tone>;

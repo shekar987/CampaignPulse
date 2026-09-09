@@ -21,6 +21,10 @@ const PATHS = {
   clock: "M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 7v5l3 2",
   filter: "M4 5h16l-6 7v5l-4 2v-7L4 5z",
   inbox: "M4 13h4l2 3h4l2-3h4M6 5h12l2 8v6H4v-6l2-8z",
+  play: "M7 5v14l11-7z",
+  "rotate-ccw": "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+  archive: "M4 5h16v4H4zM6 9v10h12V9M10 13h4",
+  "check-square": "M9 12l2 2 4-4M5 4h14v16H5z",
   link: "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
 } as const;
 
