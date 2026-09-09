@@ -8,6 +8,8 @@ import {
 
 import type { PrismaClient } from "../db/client";
 import type { CampaignService, CampaignView } from "./campaign-service";
+import type { DeadLetterService } from "./dead-letter-service";
+import type { IncidentService } from "./incident-service";
 import type { MetricsService } from "./metrics-service";
 
 export interface ChannelHealthView {
@@ -30,6 +32,8 @@ export interface SystemHealthSnapshot {
   campaigns: HealthCounts;
   delivery: DeliveryMetrics;
   attention: CampaignView[];
+  openIncidents: number;
+  deadLetterCount: number;
 }
 
 /** Rolling window for the overview page. A demo assumption, documented in docs/decisions.md. */
@@ -41,6 +45,8 @@ export class SystemHealthService {
     private readonly db: PrismaClient,
     private readonly metrics: MetricsService,
     private readonly campaigns: CampaignService,
+    private readonly incidents: IncidentService,
+    private readonly deadLetters: DeadLetterService,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -48,11 +54,14 @@ export class SystemHealthService {
     const generatedAt = this.now();
     const since = new Date(generatedAt.getTime() - SYSTEM_HEALTH_WINDOW_HOURS * 60 * 60 * 1000);
 
-    const [countsByChannel, campaignGroups, attention] = await Promise.all([
-      this.metrics.countsByChannel({ since }),
-      this.db.campaign.groupBy({ by: ["healthStatus"], _count: { _all: true } }),
-      this.campaigns.listNeedingAttention(ATTENTION_LIMIT),
-    ]);
+    const [countsByChannel, campaignGroups, attention, openIncidents, deadLetterCount] =
+      await Promise.all([
+        this.metrics.countsByChannel({ since }),
+        this.db.campaign.groupBy({ by: ["healthStatus"], _count: { _all: true } }),
+        this.campaigns.listNeedingAttention(ATTENTION_LIMIT),
+        this.incidents.countActive(),
+        this.deadLetters.countPending(),
+      ]);
 
     const channels: ChannelHealthView[] = CHANNELS.map((channel) => {
       const counts = countsByChannel.get(channel) ?? { successes: 0, failures: 0 };
@@ -76,6 +85,8 @@ export class SystemHealthService {
       campaigns,
       delivery: computeMetrics(mergeOutcomeCounts([...countsByChannel.values()])),
       attention,
+      openIncidents,
+      deadLetterCount,
     };
   }
 }

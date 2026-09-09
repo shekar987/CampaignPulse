@@ -33,6 +33,10 @@ export interface CampaignView {
   healthStatus: HealthStatus;
   channels: CampaignChannelView[];
   metrics: DeliveryMetrics;
+  /** Incidents that are open or acknowledged. */
+  openIncidentCount: number;
+  /** Dead-lettered deliveries waiting to be replayed or discarded. */
+  deadLetterCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -175,12 +179,43 @@ export class CampaignService {
   }
 
   private async toViews(rows: CampaignRow[]): Promise<CampaignView[]> {
-    const counts = await this.metrics.countsByCampaignChannel(rows.map((row) => row.id));
-    return rows.map((row) => toView(row, counts.get(row.id) ?? new Map()));
+    if (rows.length === 0) {
+      return [];
+    }
+    const ids = rows.map((row) => row.id);
+    const [counts, incidentGroups, deadLetterGroups] = await Promise.all([
+      this.metrics.countsByCampaignChannel(ids),
+      this.db.incident.groupBy({
+        by: ["campaignId"],
+        where: { campaignId: { in: ids }, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+        _count: { _all: true },
+      }),
+      this.db.deadLetterEntry.groupBy({
+        by: ["campaignId"],
+        where: { campaignId: { in: ids }, status: "PENDING" },
+        _count: { _all: true },
+      }),
+    ]);
+    const openIncidents = new Map(
+      incidentGroups.map((group) => [group.campaignId, group._count._all]),
+    );
+    const deadLetters = new Map(
+      deadLetterGroups.map((group) => [group.campaignId, group._count._all]),
+    );
+    return rows.map((row) =>
+      toView(row, counts.get(row.id) ?? new Map(), {
+        openIncidentCount: openIncidents.get(row.id) ?? 0,
+        deadLetterCount: deadLetters.get(row.id) ?? 0,
+      }),
+    );
   }
 }
 
-function toView(row: CampaignRow, countsByChannel: ChannelCounts): CampaignView {
+function toView(
+  row: CampaignRow,
+  countsByChannel: ChannelCounts,
+  extras: { openIncidentCount: number; deadLetterCount: number },
+): CampaignView {
   const channels: CampaignChannelView[] = [...row.channels]
     .sort((a, b) => (CHANNEL_ORDER.get(a.channel) ?? 99) - (CHANNEL_ORDER.get(b.channel) ?? 99))
     .map((channel) => ({
@@ -200,6 +235,8 @@ function toView(row: CampaignRow, countsByChannel: ChannelCounts): CampaignView 
     healthStatus: row.healthStatus,
     channels,
     metrics: computeMetrics(mergeOutcomeCounts([...countsByChannel.values()])),
+    openIncidentCount: extras.openIncidentCount,
+    deadLetterCount: extras.deadLetterCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
