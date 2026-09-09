@@ -13,6 +13,25 @@ self-scan devices, each of which can fail independently.
 > claims about how any real platform is built or how reliable it is. All campaigns, advertisers
 > and delivery events are synthetic.
 
+## Screenshots
+
+| Overview                                                                                                    | Campaign detail                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| ![System overview with channel health, campaign counts and delivery metrics](docs/screenshots/overview.png) | ![Campaign detail with channel health, simulation control, incidents and dead-letter queue](docs/screenshots/campaign-detail.png) |
+
+| Incident                                                                                             | Dead-letter queue                                                   |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| ![Incident detail with acknowledge, retry and resolve actions](docs/screenshots/incident-detail.png) | ![Dead-letter queue with replay](docs/screenshots/dead-letters.png) |
+
+<details>
+<summary>Mobile</summary>
+
+| Overview                                                     | Campaign detail                                                            |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| ![Overview on a phone](docs/screenshots/overview-mobile.png) | ![Campaign detail on a phone](docs/screenshots/campaign-detail-mobile.png) |
+
+</details>
+
 ## The problem it models
 
 A campaign is delivered to several channels. Some deliveries succeed, some time out, some are
@@ -179,6 +198,15 @@ docs/               architecture, decision log, demo scenarios, AWS deployment
 | 5     | End-to-end tests (Playwright) and database integration tests       | Done    |
 | 6     | AWS: Lambda, SQS with DLQ, SNS, CloudWatch, infrastructure as code | Done    |
 | 7     | Polish: responsive and accessibility passes, screenshots           | Planned |
+
+## Live deployment
+
+The `dev` stage runs on AWS in `eu-west-2`: Lambda functions behind API Gateway, SQS with a
+dead-letter queue, SNS, RDS PostgreSQL, Secrets Manager, CloudWatch, and the web app on
+CloudFront. It is torn down when not being demonstrated to keep costs at zero, so the URL may be
+offline: https://d2tg6k6wy891qy.cloudfront.net. The whole environment is recreated with one
+command from AWS CloudShell or one GitHub Actions run; see the
+[deploy runbook](docs/deploy-runbook.md).
 
 ## Documentation
 
