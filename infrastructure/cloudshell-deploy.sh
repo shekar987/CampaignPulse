@@ -96,7 +96,8 @@ log "Applying database migrations"
 log "Seeding demo data if the database is empty"
 COUNT="$(cd apps/api && node -e "
   const { Client } = require('pg');
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  const url = new URL(process.env.DATABASE_URL); url.searchParams.delete('sslmode');
+  const c = new Client({ connectionString: url.toString(), ssl: { rejectUnauthorized: false } });
   c.connect().then(() => c.query('select count(*)::int as n from campaigns'))
     .then(r => { console.log(r.rows[0].n); return c.end(); });
 ")"

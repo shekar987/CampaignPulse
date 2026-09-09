@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -49,6 +49,8 @@ for (const [name, entry] of Object.entries(HANDLERS)) {
     metafile: true,
   });
   await writeFile(`${outdir}meta.json`, JSON.stringify(result.metafile));
+  // The RDS certificate bundle is read next to the module at runtime (see src/db/ssl.ts).
+  await copyFile(`${apiRoot}src/db/rds-global-bundle.pem`, `${outdir}rds-global-bundle.pem`);
   const bytes = Object.values(result.metafile.outputs).reduce(
     (sum, output) => sum + output.bytes,
     0,
