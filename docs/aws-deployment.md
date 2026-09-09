@@ -71,14 +71,22 @@ bundles on every push.
 
 ## Deploying
 
-Prerequisites: an AWS account, Terraform 1.6+, Node.js 22+, and a Serverless Framework v4
-access key (free for individuals and small teams).
+The recommended route is the GitHub Actions workflow described step by step in
+[deploy-runbook.md](deploy-runbook.md): no access keys are created anywhere. The manual route
+below does the same from a machine with AWS credentials configured.
+
+Prerequisites: an AWS account with the bootstrap stack applied (it creates the Terraform state
+bucket), Terraform 1.10+, Node.js 22+, and a Serverless Framework v4 access key (free for
+individuals and small teams).
 
 ```bash
-# 1. Platform
+# 1. Platform (state lives in the bucket the bootstrap stack creates)
 cd infrastructure/terraform
 cp terraform.tfvars.example terraform.tfvars   # set database_url or create_database = true
-terraform init
+terraform init \
+  -backend-config="bucket=campaignpulse-terraform-state-<account id>" \
+  -backend-config="key=campaignpulse/dev.tfstate" \
+  -backend-config="region=eu-west-2"
 terraform apply
 
 # 2. Database schema (from the repository root, against the same database)
@@ -90,13 +98,13 @@ cd infrastructure/serverless
 npx serverless@4 deploy --stage dev --region eu-west-2
 ```
 
-The GraphQL endpoint is printed at the end of the Serverless deploy. Point the web app at it with
-`VITE_GRAPHQL_URL` when building (`npm run build -w apps/web`) and host the static output on any
-CDN or bucket; API Gateway CORS is enabled for that purpose.
+The GraphQL endpoint is printed at the end of the Serverless deploy. Build the web app against it
+with `VITE_GRAPHQL_URL=<endpoint>/graphql npm run build -w apps/web` and sync `apps/web/dist` to
+the S3 bucket Terraform created (`web_bucket` output); CloudFront serves it with SPA routing.
+API Gateway CORS is enabled for that purpose.
 
-`.github/workflows/deploy.yml` runs the same three steps as a manual workflow, authenticating to
-AWS with GitHub OIDC and reading the database connection string and Serverless key from
-repository secrets.
+`.github/workflows/deploy.yml` runs the same steps, plus building and publishing the web app to
+S3 and CloudFront, authenticating to AWS with GitHub OIDC; `destroy.yml` tears a stage down.
 
 ## Database options
 

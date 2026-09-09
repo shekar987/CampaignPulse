@@ -185,3 +185,4 @@ docs/               architecture, decision log, demo scenarios, AWS deployment
 - [Decision log](docs/decisions.md)
 - [Demo scenarios](docs/demo-scenarios.md)
 - [AWS deployment](docs/aws-deployment.md)
+- [Deploy runbook](docs/deploy-runbook.md): GitHub Actions with OIDC, no access keys
