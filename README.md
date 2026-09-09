@@ -119,7 +119,7 @@ npm run dev                               # API on :4000, web on :5173
 Then open http://localhost:5173. GraphiQL is available at http://localhost:4000/graphql.
 
 `npm run setup` runs the codegen, database and seed steps in one go. To see the pipeline in
-motion, open any campaign and run the **Critical** scenario: within seconds the channel turns
+motion, open any campaign and run the **Critical** scenario from the scenario runner: within seconds the channel turns
 critical, an incident opens, and the timeline fills with retries.
 
 The integration and end-to-end tests need a database too: set `DATABASE_URL_TEST` in

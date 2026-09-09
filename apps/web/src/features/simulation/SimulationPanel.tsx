@@ -24,8 +24,8 @@ export function SimulationPanel({
 
   return (
     <Card
-      title="Run simulation"
-      description="Publish simulated delivery requests for this campaign and watch health, incidents and retries respond."
+      title="Scenario runner"
+      description="Replay a delivery scenario against this campaign to exercise detection, retries and alerting end to end."
       className="border-accent/30 bg-[linear-gradient(135deg,var(--color-accent-subtle),var(--color-surface-raised)_45%)]"
     >
       <div className="flex flex-col gap-4">

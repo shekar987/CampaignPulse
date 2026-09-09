@@ -24,7 +24,7 @@ describe("SimulationForm", () => {
     await user.click(screen.getByLabelText("SmartShop"));
     expect(screen.getByText(/1 delivery will be requested/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /run simulation/i }));
+    await user.click(screen.getByRole("button", { name: /run scenario/i }));
     expect(onSubmit).toHaveBeenCalledWith({
       campaignId,
       channels: ["WEB"],
@@ -51,7 +51,7 @@ describe("SimulationForm", () => {
     await user.clear(screen.getByLabelText(/failure rate/i));
     await user.type(screen.getByLabelText(/failure rate/i), "12.5");
     await user.type(screen.getByLabelText(/seed/i), "42");
-    await user.click(screen.getByRole("button", { name: /run simulation/i }));
+    await user.click(screen.getByRole("button", { name: /run scenario/i }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       campaignId,
@@ -75,7 +75,7 @@ describe("SimulationForm", () => {
     );
     const user = userEvent.setup();
     await user.click(screen.getByLabelText("Website"));
-    await user.click(screen.getByRole("button", { name: /run simulation/i }));
+    await user.click(screen.getByRole("button", { name: /run scenario/i }));
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText(/select at least one channel/i)).toBeInTheDocument();
   });

@@ -20,8 +20,8 @@ async function createCampaign(page: Page, name: string, channels: string[]) {
 }
 
 async function runScenario(page: Page, scenario: string) {
-  await page.getByLabel("Scenario").selectOption(scenario);
-  await page.getByRole("button", { name: /run simulation/i }).click();
+  await page.getByLabel("Scenario", { exact: true }).selectOption(scenario);
+  await page.getByRole("button", { name: /run scenario/i }).click();
   await expect(page.getByRole("status").filter({ hasText: /started at/ })).toBeVisible();
 }
 

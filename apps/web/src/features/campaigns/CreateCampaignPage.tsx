@@ -38,7 +38,7 @@ export function CreateCampaignPage() {
           </Link>
         }
         title="New campaign"
-        description="Create a demo campaign and choose the channels it is delivered to. Delivery events can be simulated once it exists."
+        description="Name the campaign and choose the channels it is delivered to. Delivery tracking starts as soon as it exists."
       />
       <div className="max-w-(--container-2xl)">
         <CreateCampaignForm

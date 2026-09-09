@@ -95,7 +95,7 @@ export function AppShell() {
         </nav>
 
         <p className={styles.sidebarFooter}>
-          Synthetic demo data. Not affiliated with any retailer.
+          CampaignPulse · Delivery reliability for retail media
         </p>
       </aside>
 
@@ -123,8 +123,12 @@ export function AppShell() {
         <p className="text-sm font-medium text-fg-secondary">
           Retail Media Delivery Reliability Platform
         </p>
-        <span className="ml-auto rounded-full border border-line bg-surface-sunken px-2.5 py-0.5 text-xs font-medium text-fg-secondary">
-          Demo environment
+        <span
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-status-success-border bg-status-success-bg px-2.5 py-0.5 text-xs font-medium text-status-success-fg"
+          title="Data refreshes automatically every few seconds"
+        >
+          <span aria-hidden="true" className={styles.liveDot} />
+          Live
         </span>
       </header>
 

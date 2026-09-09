@@ -135,7 +135,7 @@ export function IncidentsPage() {
             description={
               hasFilters
                 ? "Try a different status or severity."
-                : "Every channel is within its error-rate threshold. Run a critical simulation on a campaign to see one open."
+                : "Every channel is within its error-rate threshold. Incidents open here automatically when one crosses it."
             }
           />
         ) : (

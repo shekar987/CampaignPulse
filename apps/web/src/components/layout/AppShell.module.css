@@ -144,6 +144,27 @@
   display: none;
 }
 
+.liveDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--color-status-success-solid);
+  box-shadow: 0 0 0 0 rgb(31 138 76 / 0.5);
+  animation: livePulse 2s ease-out infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(31 138 76 / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgb(31 138 76 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(31 138 76 / 0);
+  }
+}
+
 /* Tablet: collapse to icons only. */
 @media (max-width: 1023px) {
   .shell {

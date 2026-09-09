@@ -10,7 +10,7 @@ Every campaign, advertiser and event is synthetic.
 
 ## Running scenarios live
 
-Open any campaign and use **Run simulation**. Each preset is exact and reproducible from its seed:
+Open any campaign and use the **Scenario runner**. Each preset is exact and reproducible from its seed:
 
 | Scenario              | Per channel                                           | What to watch                                           |
 | --------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
@@ -26,7 +26,7 @@ Incidents open only once a channel has 100 recorded attempts, so the single-deli
 never open one on their own. Backoff is compressed locally (`RETRY_BACKOFF_SCALE=0.1`), so a
 retry chain completes in a few seconds rather than 35.
 
-The operator journey is: run **Critical**, open the incident, **Acknowledge**, **Retry failed
+The operator journey is: run the **Critical** scenario, open the incident, **Acknowledge**, **Retry failed
 deliveries** (replays anything in the dead-letter queue for that channel), then **Resolve** with
 a note. Every step lands on the campaign timeline.
 

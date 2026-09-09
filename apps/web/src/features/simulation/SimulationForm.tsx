@@ -158,10 +158,10 @@ export function SimulationForm({
           disabled={submitting}
           icon={<Icon name="play" size={16} />}
         >
-          {submitting ? "Publishing…" : "Run simulation"}
+          {submitting ? "Publishing…" : "Run scenario"}
         </Button>
         <p className="text-xs text-fg-secondary">
-          Requests are published to the event bus and processed by workers in the background.
+          Requests go through the delivery queue and are processed by workers in the background.
         </p>
       </div>
     </form>

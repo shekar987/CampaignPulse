@@ -21,7 +21,7 @@ export function DashboardPage() {
     <>
       <PageHeader
         title="System overview"
-        description="Delivery health across every simulated channel, with the campaigns that need attention first."
+        description="Delivery health across every channel, with the campaigns that need attention first."
       />
 
       {isPending ? (
