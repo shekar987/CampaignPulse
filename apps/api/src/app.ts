@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { format } from "node:util";
 
 import type { ASTNode, Source } from "graphql";
@@ -17,6 +16,7 @@ import type { AppConfig } from "./config";
 import type { PrismaClient } from "./db/client";
 import type { EventBus } from "./events/event-bus";
 import type { GraphQLContext } from "./graphql/context";
+import { typeDefs } from "./graphql/generated/schema";
 import { resolvers } from "./graphql/resolvers";
 import type { Logger } from "./logging/logger";
 import type { NotificationPublisher } from "./notifications/notification-publisher";
@@ -32,8 +32,6 @@ export interface AppDependencies {
 }
 
 export type App = ReturnType<typeof createApp>;
-
-const typeDefs = readFileSync(new URL("./graphql/schema.graphql", import.meta.url), "utf8");
 
 /**
  * Builds the GraphQL application. It is transport-agnostic: `server.ts` mounts it on a Node

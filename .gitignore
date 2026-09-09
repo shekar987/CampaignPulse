@@ -33,3 +33,17 @@ Thumbs.db
 # Test artifacts
 playwright-report/
 test-results/
+
+# Deployment artefacts
+infrastructure/serverless/.build/
+infrastructure/serverless/.serverless/
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/terraform.tfvars
+
+# Playwright
+.playwright/
+playwright-report/
+test-results/

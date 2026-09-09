@@ -9,3 +9,8 @@ apps/api/prisma/migrations/
 apps/web/src/gql/
 *.prisma
 *.sql
+infrastructure/serverless/.build/
+infrastructure/serverless/.serverless/
+infrastructure/terraform/.terraform/
+.playwright/
+playwright-report/
