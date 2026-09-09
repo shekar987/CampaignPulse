@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+stage        = "dev"
+region       = "eu-west-2"
+alert_email  = "" # e.g. "oncall@example.com"
+
+# Either point at an existing PostgreSQL database...
+database_url = "postgresql://user:password@host:5432/campaignpulse?sslmode=require"
+
+# ...or let Terraform create a small RDS instance instead.
+# create_database              = true
+# database_publicly_accessible = true
+# database_allowed_cidrs       = ["203.0.113.10/32"] # your IP, for running migrations
