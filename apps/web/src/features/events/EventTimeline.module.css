@@ -10,9 +10,6 @@
 }
 
 .table th {
-  position: sticky;
-  top: var(--layout-topbar-height);
-  z-index: 1;
   background-color: var(--color-surface-sunken);
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
@@ -76,25 +73,55 @@
     display: block;
   }
 
+  /* Each row becomes a card: header labels are repeated beside every value. */
   .table tr {
-    padding: var(--spacing-md);
-    border-bottom: 1px solid var(--color-line-subtle);
+    margin: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-line-subtle);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
   }
 
   .table td {
     display: grid;
-    grid-template-columns: 7rem minmax(0, 1fr);
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: start;
+    justify-items: start;
     gap: var(--spacing-sm);
-    padding: var(--spacing-2xs) 0;
+    padding: var(--spacing-xs) 0;
+    border-bottom: 1px solid var(--color-line-subtle);
+  }
+
+  .table td:last-child {
     border-bottom: 0;
   }
 
   .table td::before {
     content: attr(data-label);
+    padding-top: 0.125rem;
     font-size: var(--text-xs);
     font-weight: 600;
     color: var(--color-fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+
+  .table td[data-label="Actions"] {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    padding-top: var(--spacing-sm);
+  }
+
+  .table td[data-label="Actions"]::before {
+    display: none;
+  }
+
+  .table td[data-label="Actions"] > * {
+    width: 100%;
+  }
+
+  .table td[data-label="Actions"]:empty {
+    display: none;
   }
 }

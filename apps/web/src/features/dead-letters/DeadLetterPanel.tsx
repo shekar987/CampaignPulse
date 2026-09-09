@@ -200,7 +200,6 @@ export function DeadLetterPanel({ campaignId }: DeadLetterPanelProps) {
                       {entry.status === "PENDING" ? (
                         <Button
                           size="sm"
-                          variant="ghost"
                           disabled={retry.isPending}
                           onClick={() =>
                             void replay({ campaignId: entry.campaignId, channel: entry.channel })
