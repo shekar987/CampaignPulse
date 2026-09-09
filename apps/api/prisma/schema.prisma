@@ -1,0 +1,172 @@
+// CampaignPulse data model.
+//
+// Column and table names are snake_case in PostgreSQL and camelCase in the client. Health is
+// persisted (recalculated whenever delivery events change) while delivery metrics are
+// aggregated on read from `delivery_events`. See docs/decisions.md for the reasoning.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Simulated delivery channels. Mirrors CHANNELS in @campaignpulse/event-contracts.
+enum Channel {
+  WEB
+  MOBILE_APP
+  IN_STORE_DISPLAY
+  SMARTSHOP
+}
+
+/// Lifecycle of a campaign, independent of its delivery health.
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+/// Derived from delivery error rates. UNKNOWN means no delivery data yet.
+enum HealthStatus {
+  HEALTHY
+  DEGRADED
+  CRITICAL
+  UNKNOWN
+}
+
+/// Mirrors EVENT_TYPES in @campaignpulse/event-contracts.
+enum EventType {
+  CAMPAIGN_DELIVERY_REQUESTED
+  DELIVERY_STARTED
+  DELIVERY_SUCCEEDED
+  DELIVERY_FAILED
+  DELIVERY_RETRY_REQUESTED
+  DELIVERY_RETRY_SUCCEEDED
+  DELIVERY_FINAL_FAILURE
+  INCIDENT_CREATED
+  INCIDENT_ACKNOWLEDGED
+  INCIDENT_RESOLVED
+}
+
+/// Mirrors EVENT_STATUSES in @campaignpulse/event-contracts.
+enum EventStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  RETRYING
+  FINAL_FAILURE
+}
+
+/// Mirrors ERROR_CODES in @campaignpulse/event-contracts.
+enum ErrorCode {
+  TIMEOUT
+  RATE_LIMITED
+  VALIDATION_ERROR
+  DEPENDENCY_UNAVAILABLE
+  AUTHORIZATION_ERROR
+  NETWORK_ERROR
+  UNKNOWN_ERROR
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum IncidentSeverity {
+  WARNING
+  CRITICAL
+}
+
+model Campaign {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  name           String         @db.VarChar(255)
+  advertiserName String         @map("advertiser_name") @db.VarChar(255)
+  status         CampaignStatus @default(ACTIVE)
+  healthStatus   HealthStatus   @default(UNKNOWN) @map("health_status")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  channels  CampaignChannel[]
+  events    DeliveryEvent[]
+  incidents Incident[]
+
+  @@index([healthStatus])
+  @@index([createdAt(sort: Desc)])
+  @@map("campaigns")
+}
+
+model CampaignChannel {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  campaignId   String       @map("campaign_id") @db.Uuid
+  channel      Channel
+  healthStatus HealthStatus @default(UNKNOWN) @map("health_status")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, channel])
+  @@map("campaign_channels")
+}
+
+/// One row per event on a delivery timeline. `id` is supplied by the producer and doubles as
+/// the idempotency key; `correlation_id` links every event of one delivery workflow.
+model DeliveryEvent {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  campaignId    String      @map("campaign_id") @db.Uuid
+  correlationId String      @map("correlation_id") @db.VarChar(255)
+  eventType     EventType   @map("event_type")
+  channel       Channel
+  status        EventStatus
+  attempt       Int         @default(1)
+  latencyMs     Int?        @map("latency_ms")
+  errorCode     ErrorCode?  @map("error_code")
+  errorMessage  String?     @map("error_message")
+  metadata      Json?
+  occurredAt    DateTime    @map("occurred_at") @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, occurredAt(sort: Desc)])
+  @@index([correlationId])
+  @@index([campaignId, channel, eventType])
+  @@index([occurredAt])
+  @@map("delivery_events")
+}
+
+model Incident {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  campaignId     String           @map("campaign_id") @db.Uuid
+  channel        Channel
+  status         IncidentStatus   @default(OPEN)
+  severity       IncidentSeverity
+  title          String           @db.VarChar(255)
+  description    String?
+  startedAt      DateTime         @map("started_at") @db.Timestamptz(3)
+  acknowledgedAt DateTime?        @map("acknowledged_at") @db.Timestamptz(3)
+  resolvedAt     DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([status, startedAt(sort: Desc)])
+  @@map("incidents")
+}
+
+/// Idempotency ledger: an event id recorded here has already been processed and must be
+/// ignored if it is delivered again.
+model ProcessedEvent {
+  eventId     String   @id @map("event_id") @db.Uuid
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(3)
+
+  @@map("processed_events")
+}

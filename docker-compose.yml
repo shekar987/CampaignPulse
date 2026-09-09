@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: campaignpulse-postgres
+    environment:
+      POSTGRES_USER: campaignpulse
+      POSTGRES_PASSWORD: campaignpulse
+      POSTGRES_DB: campaignpulse
+    ports:
+      # Host port 5433 so the container never collides with a PostgreSQL service that may
+      # already be installed on the machine and listening on 5432.
+      - "5433:5432"
+    volumes:
+      - campaignpulse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campaignpulse -d campaignpulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  campaignpulse-pgdata:
