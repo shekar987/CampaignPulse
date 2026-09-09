@@ -122,17 +122,18 @@ resource "aws_lambda_function" "graphql" {
 resource "aws_lambda_function" "delivery_worker" {
   count = local.functions_enabled
 
-  function_name                  = local.function_names.delivery_worker
-  description                    = "Consumes delivery requests, performs simulated deliveries, schedules retries"
-  role                           = aws_iam_role.lambda[0].arn
-  handler                        = "index.handler"
-  runtime                        = "nodejs22.x"
-  architectures                  = ["arm64"]
-  memory_size                    = 512
-  timeout                        = 60
-  reserved_concurrent_executions = 5
-  filename                       = data.archive_file.function["delivery_worker"].output_path
-  source_code_hash               = data.archive_file.function["delivery_worker"].output_base64sha256
+  function_name = local.function_names.delivery_worker
+  description   = "Consumes delivery requests, performs simulated deliveries, schedules retries"
+  role          = aws_iam_role.lambda[0].arn
+  handler       = "index.handler"
+  runtime       = "nodejs22.x"
+  architectures = ["arm64"]
+  memory_size   = 512
+  timeout       = 60
+  # Reserved concurrency is deliberately not set: new AWS accounts start with a 10-concurrency
+  # limit and reserving any of it is refused. The SQS trigger's batch size bounds the load instead.
+  filename         = data.archive_file.function["delivery_worker"].output_path
+  source_code_hash = data.archive_file.function["delivery_worker"].output_base64sha256
 
   environment {
     variables = local.function_environment
