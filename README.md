@@ -50,7 +50,8 @@ retried, and some end up in a dead-letter queue. The engineering team needs to a
 - **Structured logging** (JSON lines with request and correlation ids) and typed configuration.
 - **AWS deployment**: Lambda functions behind API Gateway and SQS, an SQS dead-letter queue, SNS
   notifications, Secrets Manager, and CloudWatch logs, metric filters, alarms and a dashboard,
-  provisioned with Terraform and the Serverless Framework.
+  provisioned with Terraform (the Serverless Framework is supported as an alternative for the
+  functions).
 
 ## Architecture at a glance
 
@@ -71,8 +72,8 @@ packages/
    ├─ shared            health, metrics, retry policy, state machine, incident rules
    └─ design-tokens     semantic design tokens → Tailwind theme
 infrastructure/
-   ├─ terraform         queues, topic, secret, log groups, alarms, dashboard, optional RDS
-   └─ serverless        Lambda functions, API route, event source mappings, IAM
+   ├─ terraform         queues, topic, secret, observability, hosting, RDS, Lambda, API Gateway
+   └─ serverless        optional Serverless Framework deployment of the functions
 ```
 
 Locally one Node process hosts the API and the worker on an in-memory bus with SQS semantics;

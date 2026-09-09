@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Removes everything cloudshell-deploy.sh created for a stage: functions first, then the platform
-# (including the database, without a final snapshot). Run from the repository root.
+# Removes everything cloudshell-deploy.sh created for a stage, including the database (without a
+# final snapshot). Run from the repository root.
 set -euo pipefail
 
 STAGE="${STAGE:-dev}"
@@ -9,7 +9,6 @@ export AWS_DEFAULT_REGION="$AWS_REGION"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 export PATH="$HOME/bin:$PATH"
-[ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh" && nvm use 24 >/dev/null 2>&1 || true
 
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 STATE_BUCKET="campaignpulse-terraform-state-${ACCOUNT_ID}"
@@ -17,9 +16,12 @@ STATE_BUCKET="campaignpulse-terraform-state-${ACCOUNT_ID}"
 read -r -p "Tear down stage '$STAGE' in account $ACCOUNT_ID ($AWS_REGION)? Type the stage name to confirm: " CONFIRM
 [ "$CONFIRM" = "$STAGE" ] || { echo "aborted"; exit 1; }
 
-pushd infrastructure/serverless >/dev/null
-npx -y serverless@4 remove --stage "$STAGE" --region "$AWS_REGION" || true
-popd >/dev/null
+# The function archives are inputs to the plan even on destroy; provide empty stand-ins if the
+# bundles were not built in this session.
+for fn in graphql delivery-worker dead-letter-consumer; do
+  mkdir -p "infrastructure/serverless/.build/$fn"
+  [ -e "infrastructure/serverless/.build/$fn/index.mjs" ] || echo "" > "infrastructure/serverless/.build/$fn/index.mjs"
+done
 
 pushd infrastructure/terraform >/dev/null
 export TF_VAR_stage="$STAGE" TF_VAR_region="$AWS_REGION" TF_VAR_database_url="placeholder"

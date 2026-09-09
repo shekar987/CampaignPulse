@@ -29,49 +29,43 @@ git push -u origin main
 The role can only be assumed by workflows running in _your_ repository, and only holds
 PowerUser rights plus IAM rights on roles named `campaignpulse-*`.
 
-## 3. Get a Serverless Framework access key (free, once)
-
-Sign up at https://app.serverless.com, open **Settings → Access Keys**, create one and copy it.
-Version 4 of the framework asks for it even on the free tier.
-
-## 4. Add the repository secrets
+## 3. Add the repository secrets
 
 GitHub → your repository → **Settings → Secrets and variables → Actions → New repository secret**:
 
-| Secret                  | Value                                                            |
-| ----------------------- | ---------------------------------------------------------------- |
-| `AWS_ROLE_TO_ASSUME`    | The `DeployRoleArn` output from step 2                           |
-| `SERVERLESS_ACCESS_KEY` | The key from step 3                                              |
-| `ALERT_EMAIL`           | Optional. An address to receive incident notifications by email. |
-| `DATABASE_URL`          | Optional. Only if you untick "Create an RDS database" in step 5. |
+| Secret               | Value                                                            |
+| -------------------- | ---------------------------------------------------------------- |
+| `AWS_ROLE_TO_ASSUME` | The `DeployRoleArn` output from step 2                           |
+| `ALERT_EMAIL`        | Optional. An address to receive incident notifications by email. |
+| `DATABASE_URL`       | Optional. Only if you untick "Create an RDS database" in step 4. |
 
-## 5. Deploy
+## 4. Deploy
 
 GitHub → **Actions → Deploy to AWS → Run workflow**. Keep the defaults (stage `dev`, region
 `eu-west-2`, create an RDS database ticked) and run it.
 
-The workflow, in order: provisions the platform with Terraform (queues, topic, secret, log
-groups, alarms, dashboard, S3 + CloudFront, RDS), applies the database migrations, seeds the demo
-data on a fresh database, bundles and deploys the three Lambda functions with the Serverless
-Framework, builds the web app against the new API URL and publishes it to CloudFront.
+The workflow, in order: bundles the three Lambda handlers, provisions the platform and the
+functions with Terraform (queues, topic, secret, log groups, alarms, dashboard, S3 + CloudFront,
+RDS, Lambda, API Gateway), applies the database migrations, seeds the demo data on a fresh
+database, builds the web app against the new API URL and publishes it to CloudFront.
 
 When it finishes, the job **Summary** shows the web app URL, the GraphQL endpoint and a link to
 the CloudWatch dashboard. If you set `ALERT_EMAIL`, confirm the subscription email SNS sends.
 
-Re-running the workflow is safe: Terraform and Serverless are idempotent, migrations only apply
+Re-running the workflow is safe: Terraform is idempotent, migrations only apply
 what is new, and the seed step skips a database that already has campaigns.
 
-## 6. Try it
+## 5. Try it
 
 Open the web app URL, pick a campaign, run the **Critical** scenario, and watch the channel turn
 critical and an incident open. In the AWS console: the dashboard shows the queue draining and
 retries waiting (delayed messages), the delivery worker's log group shows one JSON line per
 attempt, and the incident notification arrives by email if subscribed.
 
-## 7. Tear down
+## 6. Tear down
 
-**Actions → Tear down AWS stage → Run workflow**, typing the stage name to confirm. It removes the
-functions, then destroys the platform including the database (no final snapshot). The bootstrap
+**Actions → Tear down AWS stage → Run workflow**, typing the stage name to confirm. It destroys
+everything including the database (no final snapshot). The bootstrap
 role stack from step 2 stays; delete it in CloudFormation if you no longer want the repository to
 be able to deploy.
 
@@ -90,13 +84,14 @@ permissions, so nothing needs to be created or stored. Upload the repository as 
 or download it from GitHub), then:
 
 ```bash
-unzip -q CampaignPulse.zip -d campaignpulse && cd campaignpulse
-export SERVERLESS_ACCESS_KEY=...      # from app.serverless.com, or run: npx serverless login
+cd /tmp                              # CloudShell's home is capped at 1 GB; /tmp has room
+unzip -q ~/CampaignPulse.zip -d campaignpulse && cd campaignpulse
+export npm_config_cache=/tmp/npm-cache
 bash infrastructure/cloudshell-deploy.sh
 ```
 
 The script installs Node.js and Terraform into your CloudShell home, creates the Terraform state
-bucket, and runs the same steps as the workflow. It prints the web app and API URLs at the end.
+bucket, and runs the same steps as the workflow. No third-party account is involved. It prints the web app and API URLs at the end.
 Tear down with `bash infrastructure/cloudshell-destroy.sh`. Set `ALERT_EMAIL=you@example.com`
 before running to subscribe to incident notifications.
 

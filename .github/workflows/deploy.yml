@@ -1,15 +1,15 @@
 name: Deploy to AWS
 
-# Manual, per stage. Provisions the platform with Terraform, applies database migrations, deploys
-# the Lambda functions with the Serverless Framework, then builds and publishes the web app.
+# Manual, per stage. Bundles the Lambda handlers, provisions the platform and functions with
+# Terraform, applies database migrations, seeds demo data on first deploy, then builds and
+# publishes the web app.
 #
 # One-time setup (see docs/deploy-runbook.md):
 #   1. Launch infrastructure/bootstrap/github-oidc-role.yml in the AWS console.
 #   2. Repository secrets:
-#        AWS_ROLE_TO_ASSUME     the role ARN from that stack's outputs
-#        SERVERLESS_ACCESS_KEY  Serverless Framework v4 access key (free account)
-#        ALERT_EMAIL            optional: address subscribed to the incident topic
-#        DATABASE_URL           optional: only when "Create an RDS database" is unticked
+#        AWS_ROLE_TO_ASSUME  the role ARN from that stack's outputs
+#        ALERT_EMAIL         optional: address subscribed to the incident topic
+#        DATABASE_URL        optional: only when "Create an RDS database" is unticked
 #   3. Run this workflow.
 
 on:
@@ -69,7 +69,19 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Provision platform (queues, topic, secret, observability, hosting, database)
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client and GraphQL types
+        run: npm run codegen
+        env:
+          # prisma generate only needs a syntactically valid URL; the real one lives in Secrets Manager.
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+
+      - name: Bundle Lambda handlers
+        run: npm run build:lambda
+
+      - name: Provision platform and functions
         id: terraform
         working-directory: infrastructure/terraform
         env:
@@ -89,6 +101,7 @@ jobs:
           echo "web_bucket=$(terraform output -raw web_bucket)" >> "$GITHUB_OUTPUT"
           echo "web_distribution_id=$(terraform output -raw web_distribution_id)" >> "$GITHUB_OUTPUT"
           echo "web_url=$(terraform output -raw web_url)" >> "$GITHUB_OUTPUT"
+          echo "api_url=$(terraform output -raw api_url)" >> "$GITHUB_OUTPUT"
 
       - name: Read the database connection string from Secrets Manager
         id: database
@@ -98,14 +111,6 @@ jobs:
             --query SecretString --output text)
           echo "::add-mask::$url"
           echo "url=$url" >> "$GITHUB_OUTPUT"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client and GraphQL types
-        run: npm run codegen
-        env:
-          DATABASE_URL: ${{ steps.database.outputs.url }}
 
       - name: Apply database migrations
         working-directory: apps/api
@@ -127,23 +132,9 @@ jobs:
           ")
           if [ "$count" = "0" ]; then npx prisma db seed; else echo "database already has $count campaigns; not seeding"; fi
 
-      - name: Bundle Lambda handlers
-        run: npm run build:lambda
-
-      - name: Deploy functions
-        id: functions
-        working-directory: infrastructure/serverless
-        env:
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-        run: |
-          npx serverless@4 deploy --stage "$STAGE" --region "$AWS_REGION"
-          api_url=$(aws apigatewayv2 get-apis \
-            --query "Items[?Name=='$STAGE-campaignpulse'].ApiEndpoint | [0]" --output text)
-          echo "api_url=$api_url" >> "$GITHUB_OUTPUT"
-
       - name: Build the web app against the deployed API
         env:
-          VITE_GRAPHQL_URL: ${{ steps.functions.outputs.api_url }}/graphql
+          VITE_GRAPHQL_URL: ${{ steps.terraform.outputs.api_url }}
         run: npm run build -w apps/web
 
       - name: Publish the web app
@@ -160,7 +151,7 @@ jobs:
             echo "| What | Where |"
             echo "| --- | --- |"
             echo "| Web app | ${{ steps.terraform.outputs.web_url }} |"
-            echo "| GraphQL API | ${{ steps.functions.outputs.api_url }}/graphql |"
+            echo "| GraphQL API | ${{ steps.terraform.outputs.api_url }} |"
             echo "| CloudWatch dashboard | https://${AWS_REGION}.console.aws.amazon.com/cloudwatch/home?region=${AWS_REGION}#dashboards:name=campaignpulse-${STAGE} |"
             echo
             echo "CloudFront can take a few minutes to serve the first deployment."

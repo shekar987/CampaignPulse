@@ -24,20 +24,19 @@ flowchart LR
   alarms --> sns
 ```
 
-## Ownership: Terraform for the platform, Serverless Framework for the functions
+## Ownership
 
-| Concern                                                        | Tool                                               |
-| -------------------------------------------------------------- | -------------------------------------------------- |
-| SQS queues and redrive policy, SNS topic, Secrets Manager      | Terraform (`infrastructure/terraform`)             |
-| Log groups, metric filters, alarms, dashboard, optional RDS    | Terraform                                          |
-| SSM parameters handing identifiers to the application deploy   | Terraform                                          |
-| Lambda functions, API Gateway route, SQS event source mappings | Serverless Framework (`infrastructure/serverless`) |
-| Execution role and its least-privilege statements              | Serverless Framework                               |
+Terraform (`infrastructure/terraform`) provisions everything by default: queues and the redrive
+policy, the SNS topic, the Secrets Manager secret, log groups, metric filters, alarms, the
+dashboard, S3 + CloudFront for the web app, the optional RDS instance, and the three Lambda
+functions with their execution role, SQS event source mappings and the API Gateway HTTP API
+(`functions.tf`). One tool, one state, no third-party accounts.
 
-Terraform publishes every identifier the functions need (`/campaignpulse/<stage>/...`) to SSM
-Parameter Store, and `serverless.yml` reads them with `${ssm:...}`. Neither tool touches a
-resource the other created. Log groups are created by Terraform (so metric filters can reference
-them) and the functions are told not to create their own.
+The Serverless Framework configuration in `infrastructure/serverless` is an alternative for the
+functions only: set `manage_functions = false` in Terraform, and `serverless.yml` reads the
+queue, topic and secret identifiers Terraform publishes to SSM Parameter Store
+(`/campaignpulse/<stage>/...`). Log groups stay with Terraform either way so metric filters can
+reference them.
 
 ## Runtime wiring
 
@@ -76,8 +75,7 @@ The recommended route is the GitHub Actions workflow described step by step in
 below does the same from a machine with AWS credentials configured.
 
 Prerequisites: an AWS account with the bootstrap stack applied (it creates the Terraform state
-bucket), Terraform 1.10+, Node.js 22+, and a Serverless Framework v4 access key (free for
-individuals and small teams).
+bucket), Terraform 1.10+ and Node.js 22+.
 
 ```bash
 # 1. Platform (state lives in the bucket the bootstrap stack creates)
@@ -92,13 +90,13 @@ terraform apply
 # 2. Database schema (from the repository root, against the same database)
 DATABASE_URL="postgresql://..." npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
 
-# 3. Functions
-npm run build:lambda
-cd infrastructure/serverless
-npx serverless@4 deploy --stage dev --region eu-west-2
+# Terraform deployed the functions from the bundles built by `npm run build:lambda`
+# (run it before `terraform apply`). To use the Serverless Framework instead:
+#   terraform apply -var manage_functions=false
+#   cd ../serverless && npx serverless@4 deploy --stage dev --region eu-west-2
 ```
 
-The GraphQL endpoint is printed at the end of the Serverless deploy. Build the web app against it
+The GraphQL endpoint is the `api_url` Terraform output. Build the web app against it
 with `VITE_GRAPHQL_URL=<endpoint>/graphql npm run build -w apps/web` and sync `apps/web/dist` to
 the S3 bucket Terraform created (`web_bucket` output); CloudFront serves it with SPA routing.
 API Gateway CORS is enabled for that purpose.

@@ -1,6 +1,6 @@
 name: Tear down AWS stage
 
-# Removes everything the deploy workflow created for a stage, functions first, then the platform.
+# Removes everything the deploy workflow created for a stage, including the database.
 
 on:
   workflow_dispatch:
@@ -40,12 +40,6 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -57,22 +51,17 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Remove functions
-        working-directory: infrastructure/serverless
-        env:
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-        run: npx serverless@4 remove --stage "$STAGE" --region "$AWS_REGION" || true
-
-      - name: Destroy platform
+      - name: Destroy platform and functions
         working-directory: infrastructure/terraform
         env:
           TF_VAR_stage: ${{ inputs.stage }}
           TF_VAR_region: ${{ inputs.region }}
           TF_VAR_database_url: "placeholder"
         run: |
+          # The function archives are plan inputs even on destroy; provide empty stand-ins.
+          for fn in graphql delivery-worker dead-letter-consumer; do
+            mkdir -p "../serverless/.build/$fn" && echo "" > "../serverless/.build/$fn/index.mjs"
+          done
           account_id=$(aws sts get-caller-identity --query Account --output text)
           terraform init -input=false \
             -backend-config="bucket=campaignpulse-terraform-state-${account_id}" \
