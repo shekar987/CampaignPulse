@@ -46,9 +46,13 @@ variable "database_publicly_accessible" {
 }
 
 variable "database_allowed_cidrs" {
-  description = "CIDR blocks allowed to reach PostgreSQL when create_database is true."
+  description = <<-EOT
+    CIDR blocks allowed to reach PostgreSQL when create_database is true. The Lambda functions
+    run outside a VPC with no fixed egress address, so the demo default admits any address and
+    relies on TLS plus a 32-character random password. Narrow it for anything beyond a demo.
+  EOT
   type        = list(string)
-  default     = []
+  default     = ["0.0.0.0/0"]
 }
 
 variable "alert_email" {

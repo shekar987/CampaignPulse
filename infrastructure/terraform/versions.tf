@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.6"
+  required_version = ">= 1.10"
 
   required_providers {
     aws = {
@@ -12,12 +12,16 @@ terraform {
     }
   }
 
-  # Keep state remote for anything beyond a personal sandbox, e.g.:
-  # backend "s3" {
-  #   bucket = "my-terraform-state"
-  #   key    = "campaignpulse/dev.tfstate"
-  #   region = "eu-west-2"
-  # }
+  # Remote state in the bucket created by infrastructure/bootstrap/github-oidc-role.yml. The
+  # bucket, key and region are supplied at init time (see the deploy workflow):
+  #   terraform init \
+  #     -backend-config="bucket=campaignpulse-terraform-state-<account id>" \
+  #     -backend-config="key=campaignpulse/<stage>.tfstate" \
+  #     -backend-config="region=<region>"
+  # Validate or plan without state with `terraform init -backend=false`.
+  backend "s3" {
+    use_lockfile = true
+  }
 }
 
 provider "aws" {
