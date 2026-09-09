@@ -197,7 +197,15 @@ export class IncidentService {
     }
 
     if (active.severity === "WARNING" && severity === "CRITICAL") {
-      await this.db.incident.update({ where: { id: active.id }, data: { severity: "CRITICAL" } });
+      // Guarded update: concurrent workers may both observe the warning; only the one whose
+      // update changes the row escalates and notifies.
+      const escalated = await this.db.incident.updateMany({
+        where: { id: active.id, severity: "WARNING", status: { in: ACTIVE_STATUSES } },
+        data: { severity: "CRITICAL" },
+      });
+      if (escalated.count === 0) {
+        return { action: "unchanged", incident: await this.requireView(active.id) };
+      }
       const incident = await this.requireView(active.id);
       await this.notifications.publish({
         type: "INCIDENT_ESCALATED",
