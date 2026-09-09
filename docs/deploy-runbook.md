@@ -69,6 +69,22 @@ everything including the database (no final snapshot). The bootstrap
 role stack from step 2 stays; delete it in CloudFormation if you no longer want the repository to
 be able to deploy.
 
+## Your own domain
+
+Buy or transfer a domain into Route 53 (or delegate a subdomain to a Route 53 hosted zone), then
+deploy with two extra settings, either as Terraform variables or as environment variables in
+CloudShell before running the script:
+
+```bash
+export TF_VAR_domain_name=campaignpulse.example.com
+export TF_VAR_hosted_zone_id=Z0123456789ABCDEFGHIJ
+bash infrastructure/cloudshell-deploy.sh
+```
+
+Terraform requests a certificate, validates it through DNS automatically, attaches it to
+CloudFront and creates the alias records. The web app is then served at
+`https://campaignpulse.example.com`; the CloudFront address keeps working too.
+
 ## Cost while running
 
 At demo volumes the queues, functions, API Gateway, SNS, CloudFront, S3, Secrets Manager and

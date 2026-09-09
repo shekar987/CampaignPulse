@@ -68,8 +68,13 @@ resource "aws_cloudfront_distribution" "web" {
     }
   }
 
+  aliases = var.domain_name != "" ? [var.domain_name] : []
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.domain_name == ""
+    acm_certificate_arn            = var.domain_name != "" ? aws_acm_certificate_validation.web[0].certificate_arn : null
+    ssl_support_method             = var.domain_name != "" ? "sni-only" : null
+    minimum_protocol_version       = var.domain_name != "" ? "TLSv1.2_2021" : null
   }
 }
 
@@ -103,7 +108,7 @@ resource "aws_ssm_parameter" "web_handoff" {
   for_each = {
     "web-bucket"          = aws_s3_bucket.web.bucket
     "web-distribution-id" = aws_cloudfront_distribution.web.id
-    "web-url"             = "https://${aws_cloudfront_distribution.web.domain_name}"
+    "web-url"             = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.web.domain_name}"
   }
 
   name  = "/${var.project}/${var.stage}/${each.key}"
@@ -120,5 +125,5 @@ output "web_distribution_id" {
 }
 
 output "web_url" {
-  value = "https://${aws_cloudfront_distribution.web.domain_name}"
+  value = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.web.domain_name}"
 }
