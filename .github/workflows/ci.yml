@@ -9,14 +9,29 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DATABASE_URL: postgresql://campaignpulse:campaignpulse@localhost:5432/campaignpulse
+  DATABASE_URL_TEST: postgresql://campaignpulse:campaignpulse@localhost:5432/campaignpulse_test
+
 jobs:
   verify:
     name: Lint, type-check, test and build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      # `prisma generate` needs a datasource URL to load its config; no database is contacted.
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/campaignpulse
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: campaignpulse
+          POSTGRES_PASSWORD: campaignpulse
+          POSTGRES_DB: campaignpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campaignpulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -42,11 +57,77 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-      - name: Unit and component tests
+      - name: Create the integration test database
+        run: psql "$DATABASE_URL" -c "CREATE DATABASE campaignpulse_test"
+
+      - name: Unit, component and integration tests
         run: npm test
 
       - name: Build
         run: npm run build
 
+      - name: Bundle Lambda handlers
+        run: npm run build:lambda
+
       - name: Design tokens are in sync
         run: git diff --exit-code -- packages/design-tokens/theme.css
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: verify
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: campaignpulse
+          POSTGRES_PASSWORD: campaignpulse
+          POSTGRES_DB: campaignpulse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campaignpulse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Compress the retry backoff so the incident lifecycle completes quickly.
+      RETRY_BACKOFF_SCALE: "0.05"
+      SIMULATION_LATENCY_SCALE: "0"
+      LOG_LEVEL: warn
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate Prisma client and GraphQL types
+        run: npm run codegen
+
+      - name: Migrate and seed
+        run: npm run db:migrate -- --skip-generate && npm run db:seed
+        env:
+          # Prisma's migrate dev is interactive; deploy applies the committed migrations.
+          PRISMA_MIGRATE_SKIP_GENERATE: "1"
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

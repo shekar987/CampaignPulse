@@ -1,0 +1,94 @@
+name: Deploy to AWS
+
+# Manual, per stage. Provisions the platform with Terraform, applies database migrations, then
+# deploys the Lambda functions with the Serverless Framework.
+#
+# Required repository secrets:
+#   AWS_ROLE_TO_ASSUME     IAM role trusted by GitHub OIDC with rights to manage the stack
+#   DATABASE_URL           PostgreSQL connection string for the target stage (used for migrations
+#                          and stored in Secrets Manager by Terraform)
+#   SERVERLESS_ACCESS_KEY  Serverless Framework v4 licence/access key
+#   ALERT_EMAIL            (optional) address subscribed to the incident topic
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Deployment stage
+        required: true
+        default: dev
+        type: choice
+        options: [dev, staging, prod]
+      region:
+        description: AWS region
+        required: true
+        default: eu-west-2
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.stage }}
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.stage }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.stage }}
+    env:
+      AWS_REGION: ${{ inputs.region }}
+      STAGE: ${{ inputs.stage }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Provision platform (queues, topic, secret, observability)
+        working-directory: infrastructure/terraform
+        env:
+          TF_VAR_stage: ${{ inputs.stage }}
+          TF_VAR_region: ${{ inputs.region }}
+          TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client and GraphQL types
+        run: npm run codegen
+
+      - name: Apply database migrations
+        working-directory: apps/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma migrate deploy
+
+      - name: Bundle Lambda handlers
+        run: npm run build:lambda
+
+      - name: Deploy functions
+        working-directory: infrastructure/serverless
+        env:
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+        run: npx serverless@4 deploy --stage "$STAGE" --region "$AWS_REGION"
