@@ -135,10 +135,14 @@ export function CampaignDetailPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Delivery attempts"
+              icon="send"
+              tone="info"
               value={metrics.totalEvents > 0 ? formatInteger(metrics.totalEvents) : null}
             />
             <MetricCard
               label="Success rate"
+              icon="trending-up"
+              bar={metrics.successRate}
               value={formatPercent(metrics.successRate)}
               tone={
                 campaign.healthStatus === "CRITICAL"
@@ -152,6 +156,7 @@ export function CampaignDetailPage() {
             />
             <MetricCard
               label="Failed attempts"
+              icon="alert-circle"
               value={metrics.totalEvents > 0 ? formatInteger(metrics.failedEvents) : null}
               hint={
                 metrics.errorRate !== null && metrics.errorRate !== undefined
@@ -160,7 +165,11 @@ export function CampaignDetailPage() {
               }
               tone={metrics.failedEvents > 0 ? "error" : "neutral"}
             />
-            <MetricCard label="Avg latency" value={formatLatency(metrics.avgLatencyMs)} />
+            <MetricCard
+              icon="zap"
+              label="Avg latency"
+              value={formatLatency(metrics.avgLatencyMs)}
+            />
           </div>
         </section>
 

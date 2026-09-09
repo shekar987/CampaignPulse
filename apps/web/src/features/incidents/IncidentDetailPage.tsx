@@ -105,11 +105,14 @@ export function IncidentDetailPage() {
       <div className="flex flex-col gap-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
+            icon="alert-circle"
             label="Error rate at detection"
             value={formatPercent(incident.errorRateAtDetection)}
             tone={incident.severity === "CRITICAL" ? "error" : "warning"}
           />
           <MetricCard
+            icon="send"
+            tone="info"
             label="Affected attempts"
             value={
               incident.failedEventsAtDetection !== null &&
@@ -132,6 +135,7 @@ export function IncidentDetailPage() {
             </div>
           </div>
           <MetricCard
+            icon="trending-up"
             label="Current error rate"
             value={formatPercent(incident.currentMetrics.errorRate)}
             hint={
